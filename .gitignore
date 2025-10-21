@@ -7,4 +7,9 @@ wheels/
 *.egg-info
 
 # Virtual environments
+.idea/
 .venv
+uv.lock
+*.env
+
+**/.ipynb_checkpoints/
