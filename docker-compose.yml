@@ -1,4 +1,21 @@
 services:
+
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.0
+    container_name: qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://localhost:6333/healthz" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+
+
   postgres:
     image: postgres:16
     container_name: postgres
@@ -58,3 +75,4 @@ volumes:
   mongo_data:
   neo4j_data:
   neo4j_logs:
+  qdrant_data:

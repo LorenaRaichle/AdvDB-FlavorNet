@@ -11,4 +11,5 @@ dependencies = [
     "pandas>=2.3.3",
     "psycopg2-binary>=2.9.11",
     "pymongo>=4.15.3",
+    "qdrant-client>=1.15.1",
 ]

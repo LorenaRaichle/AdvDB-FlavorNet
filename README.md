@@ -1,5 +1,5 @@
 # HSG-MCS: Advanced Databases Courses: **FlavorNet**
-
+## A multi-database recommendation system
 For **FlavorNet**, our smart recipe finder, this is a small backend that spins up PostgreSQL, MongoDB and Neo4j as docker containers.
 
 ## Prerequisites

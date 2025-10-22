@@ -17,4 +17,3 @@ wheels/
 .env.*
 !.env.example  # keep a safe template
 
-uv.lock
