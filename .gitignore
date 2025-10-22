@@ -9,7 +9,12 @@ wheels/
 # Virtual environments
 .idea/
 .venv
-uv.lock
-*.env
+
 
 **/.ipynb_checkpoints/
+
+.env
+.env.*
+!.env.example  # keep a safe template
+
+uv.lock
