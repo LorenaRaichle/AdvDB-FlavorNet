@@ -1,15 +1,15 @@
-# TopJodel - Advanced Databases Projec
+# HSG-MCS: Advanced Databases Courses: **FlavorNet**
 
-This is a minimal social media backend project for a database class. It spins up PostgreSQL, MongoDB and Neo4j as docker containers.
+For **FlavorNet**, our smart recipe finder, this is a small backend that spins up PostgreSQL, MongoDB and Neo4j as docker containers.
 
 ## Prerequisites
 
 - Docker and Docker Compose installed
 
 ## Quick start
-[TopJodel](https://github.com/RicoStaedeli/TopJodel)
+[AdvDB-FlavorNet](https://github.com/LorenaRaichle/AdvDB-FlavorNet)
 ```bash
-# 1. Clone or download the project from Github https://github.com/RicoStaedeli/TopJodel --> Unzip the project if need
+# 1. Clone or download the project from Github https://github.com/LorenaRaichle/AdvDB-FlavorNet --> Unzip the project if need
 # 2. In the project directory:
 docker compose build
 docker compose up -d
