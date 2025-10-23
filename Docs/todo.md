@@ -1,3 +1,9 @@
 # TODO List
-- adapt 00_connect_and_setup notebook
-- add vector database container to docker-compose
+- Sejma: add SQL + structure 
+  - user data insert
+- Lorena: copy for mongo 
+  - insert intial recipe dataset
+  -> recipe id mongo as metadata in SQL
+  - vector DB -> embeddings rein 
+
+- Backend: 
