@@ -26,3 +26,6 @@ docker compose down
 - MongoDB - localhost:27017 - root user: `app`, password: `app_pw1234`
 - Neo4j - Browser http UI at http://localhost:7474 - Bolt at bolt://localhost:7687 - user: `neo4j`, password: `app_pw1234`
 
+
+
+-  bash mongoDB/scripts/rebuild_mongo.sh
