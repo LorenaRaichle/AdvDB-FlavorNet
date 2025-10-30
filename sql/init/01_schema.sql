@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS user_prefs (
     pref_id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    diet_type VARCHAR(50),         -- e.g., 'vegan', 'halal', 'keto'
+    diet_type TEXT[],         -- e.g., 'vegan', 'halal', 'keto'
     allergies TEXT[],              -- e.g., ['milk', 'nuts']
     dislikes TEXT[],               -- e.g., ['onion']
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
