@@ -1,7 +1,7 @@
 UPDATE user_prefs
-SET diet_type = $2,
-    allergies = $3,
-    dislikes = $4,
+SET diet_type = :diet_type,
+    allergies = :allergies,
+    dislikes = :dislikes,
     updated_at = CURRENT_TIMESTAMP
-WHERE user_id = $1
+WHERE user_id = :user_id
 RETURNING *;
