@@ -26,3 +26,50 @@ docker compose down
 - MongoDB - localhost:27017 - root user: `app`, password: `app_pw1234`
 - Neo4j - Browser http UI at http://localhost:7474 - Bolt at bolt://localhost:7687 - user: `neo4j`, password: `app_pw1234`
 
+
+
+## mongo: to do Lorena
+- recipes stored in data/recipe_nlg as csv, notebook "recipe_preprocessing" does loading, preprocessing and adding of new tags etc
+- final jsonl file in mongo schema is created: init / 03..jsonl, place processed data jsonl file name in "rebuild_mongo.sh" and run...
+- bash mongoDB/scripts/rebuild_mongo.sh
+
+## 1. mongo queries: local client -> docker (hosted files) (for quick local dev)
+- mongosh runs on host machine
+```bash
+docker exec -it mongo mongosh -u app -p app_pw1234 --authenticationDatabase admin \
+  --eval 'db.getSiblingDB("appdb").createUser({user:"appuser",pwd:"apppass",roles:[{role:"readWrite",db:"appdb"}]})'
+
+```
+
+```bash
+docker exec -it mongo mongosh \
+  "mongodb://appuser:apppass@localhost:27017/appdb?authSource=appdb" \
+  --eval 'db.stats().db'
+
+```
+
+
+```bash
+ mongosh "mongodb://appuser:apppass@localhost:27017/appdb?authSource=appdb" \
+  --file mongoDB/queries/find_recipes_by_ingredient.js \
+  --eval 'DB_NAME="appdb";ING="garlic"'
+
+```
+
+
+## 2. Container (containerized files) (for reproducible runs)
+- mongosh runs inside mongo container 
+- Run mongosh inside the mongo container via docker compose exec
+- The query file must exist in the container -> need to copy script into container
+
+```bash
+ docker cp mongoDB/queries/find_recipes_by_ingredient.js mongo:/tmp/find_recipes_by_ingredient.js
+```
+
+```bash
+docker compose exec mongo mongosh \
+  "mongodb://appuser:apppass@localhost:27017/appdb?authSource=appdb" \
+  --file /tmp/find_recipes_by_ingredient.js \
+  --eval 'DB_NAME="appdb";ING="garlic"'
+
+```
