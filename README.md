@@ -32,3 +32,26 @@ docker compose down
 - recipes stored in data/recipe_nlg as csv, notebook "recipe_preprocessing" does loading, preprocessing and adding of new tags etc
 - final jsonl file in mongo schema is created: init / 03..jsonl, place processed data jsonl file name in "rebuild_mongo.sh" and run...
 - bash mongoDB/scripts/rebuild_mongo.sh
+
+## mongo queries local
+```bash
+docker exec -it mongo mongosh -u app -p app_pw1234 --authenticationDatabase admin \
+  --eval 'db.getSiblingDB("appdb").createUser({user:"appuser",pwd:"apppass",roles:[{role:"readWrite",db:"appdb"}]})'
+
+```
+
+```bash
+docker exec -it mongo mongosh \
+  "mongodb://appuser:apppass@localhost:27017/appdb?authSource=appdb" \
+  --eval 'db.stats().db'
+
+```
+
+
+```bash
+ mongosh "mongodb://appuser:apppass@localhost:27017/appdb?authSource=appdb" \
+  --file mongoDB/queries/find_recipes_by_ingredient.js \
+  --eval 'DB_NAME="appdb";ING="garlic"'
+
+```
+
