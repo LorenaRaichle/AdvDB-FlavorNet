@@ -3,6 +3,7 @@ from typing import Sequence
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from app.routes import users
 
@@ -34,5 +35,11 @@ def root():
     return {"message": "FlavorNet backend is running!"}
 
 
-# Serve the static frontend for convenience (optional).
-app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")
+# Serve the static frontend for convenience (optional) when available (e.g. local dev).
+frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+if frontend_dir.exists():
+    app.mount(
+        "/frontend",
+        StaticFiles(directory=frontend_dir, html=True),
+        name="frontend",
+    )
