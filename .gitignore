@@ -17,3 +17,8 @@ wheels/
 .env.*
 !.env.example  # keep a safe template
 
+.DS_Store
+
+# Big datasets
+mongoDB/data/recipe_nlg/
+mongoDB/init/03_recipe_csv_sample.jsonl
