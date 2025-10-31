@@ -49,6 +49,6 @@ compose exec -T mongo mongoimport \
   --password "$MONGO_INITDB_ROOT_PASSWORD" \
   --authenticationDatabase admin \
   --db "$DB_NAME" --collection recipes \
-  --type json --file "$INIT_DIR/03_seed_small.jsonl"
+  --type json --file "$INIT_DIR/03_recipe_csv_sample.jsonl"
 
 echo "✅ Mongo database rebuilt successfully!"

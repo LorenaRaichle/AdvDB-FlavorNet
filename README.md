@@ -28,4 +28,7 @@ docker compose down
 
 
 
--  bash mongoDB/scripts/rebuild_mongo.sh
+## mongo: to do Lorena
+- recipes stored in data/recipe_nlg as csv, notebook "recipe_preprocessing" does loading, preprocessing and adding of new tags etc
+- final jsonl file in mongo schema is created: init / 03..jsonl, place processed data jsonl file name in "rebuild_mongo.sh" and run...
+- bash mongoDB/scripts/rebuild_mongo.sh

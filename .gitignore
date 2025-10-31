@@ -17,3 +17,4 @@ wheels/
 .env.*
 !.env.example  # keep a safe template
 
+.DS_Store

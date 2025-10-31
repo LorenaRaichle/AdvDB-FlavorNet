@@ -12,4 +12,24 @@ dbx.recipes.createIndex({ "ingredients.name": 1 }, { name: "ingredient_name" });
 dbx.comments.createIndex({ recipe_id: 1, created_at: -1 }, { name: "comments_by_recipe" });
 dbx.users_public.createIndex({ username: 1 }, { unique: true });
 
-print("Indexes created");
+dbx.recipes.createIndex({ course: 1 }, { name: "course" });
+
+dbx.recipes.createIndex({ dietary_tags: 1 },   { name: "dietary_tags" });
+dbx.recipes.createIndex({ flavour_tags: 1 },   { name: "flavour_tags" });
+dbx.recipes.createIndex({ ingredient_tags: 1 },{ name: "ingredient_tags" });
+
+try {
+  dbx.recipes.dropIndex("slug_unique");
+} catch (e) {
+  // ignore if it wasn't there
+}
+
+dbx.recipes.createIndex(
+  { slug: 1, source_url: 1 },
+  { name: "slug_source_unique", unique: true, sparse: true }
+);
+
+dbx.comments.createIndex({ recipe_id: 1, created_at: -1 }, { name: "comments_by_recipe" });
+dbx.users_public.createIndex({ username: 1 }, { unique: true });
+
+print("Indexes created (slug+source_url unique).");
