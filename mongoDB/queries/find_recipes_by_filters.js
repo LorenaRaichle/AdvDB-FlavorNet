@@ -1,17 +1,24 @@
-// Run: mongosh --file find_recipes_by_filters.js --eval "DB_NAME='appdb';DIET='vegan';FLAV='spicy';ING='chickpeas'"
+// Run: mongosh --file queries/find_recipes_by_ingredient.js --eval 'DB_NAME="appdb";ING="garlic"'
+// Multi-ingredient: mongosh --file queries/find_recipes_by_ingredient.js --eval 'DB_NAME="appdb";ING="garlic,tomato"'
+
 const DB_NAME = (typeof DB_NAME !== 'undefined') ? DB_NAME : 'appdb';
-const DIET = (typeof DIET !== 'undefined' && DIET) ? DIET : null;
-const FLAV = (typeof FLAV !== 'undefined' && FLAV) ? FLAV : null;
-const ING  = (typeof ING !== 'undefined'  && ING)  ? ING  : null;
+const ING_RAW = (typeof ING !== 'undefined' && ING) ? ING : 'garlic';
+const INGS = ING_RAW.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
 
 const dbx = db.getSiblingDB(DB_NAME);
+
 const q = {};
-if (DIET) q.dietary_tags   = DIET.toLowerCase();
-if (FLAV) q.flavour_tags   = FLAV.toLowerCase();
-if (ING)  q.ingredient_tags= ING.toLowerCase();
+if (INGS.length === 1) {
+  q.ingredient_tags = INGS[0];
+} else {
+  q.ingredient_tags = { $all: INGS };
+}
 
 printjson(
-  dbx.recipes.find(q, { title:1, cuisine:1, course:1, dietary_tags:1, flavour_tags:1 })
+  dbx.recipes
+    .find(q, { title: 1, cuisine: 1, ingredient_tags: 1, "rating.value": 1 })
     .sort({ "rating.value": -1 })
-    .limit(10).toArray()
+    .limit(10)
+    .toArray()
 );
+
