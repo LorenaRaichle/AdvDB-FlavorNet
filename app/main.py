@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from app.routes import users
+from app.routes import users, recipes
 
 app = FastAPI(title="FlavorNet API")
 
@@ -28,6 +28,7 @@ app.add_middleware(
 )
 
 app.include_router(users.router)
+app.include_router(recipes.router)
 
 
 @app.get("/")

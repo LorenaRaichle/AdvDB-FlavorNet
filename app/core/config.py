@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     MONGO_INITDB_DATABASE: str | None = None
     MONGO_HOST: str | None = "localhost"
     MONGO_PORT: int | None = 27017
+    MONGO_AUTH_SOURCE: str | None = "admin"
 
     # Neo4j
     APP_NEO4J_URI: str | None = "bolt://localhost:7687"
@@ -23,6 +24,9 @@ class Settings(BaseSettings):
 
     # Qdrant
     QDRANT_URL: str | None = "http://localhost:6333"
+    QDRANT_API_KEY: str | None = None
+    QDRANT_COLLECTION: str = "recipes"
+    EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
 
     # Misc / App
     ENVIRONMENT: str = "development"
@@ -46,13 +50,22 @@ class Settings(BaseSettings):
     @property
     def mongo_url(self) -> str:
         """Standard Mongo connection string."""
-        if self.MONGO_INITDB_ROOT_USERNAME and self.MONGO_INITDB_ROOT_PASSWORD:
-            return (
-                f"mongodb://{self.MONGO_INITDB_ROOT_USERNAME}:"
-                f"{self.MONGO_INITDB_ROOT_PASSWORD}@{self.MONGO_HOST}:"
-                f"{self.MONGO_PORT}/{self.MONGO_INITDB_DATABASE}"
-            )
-        return f"mongodb://{self.MONGO_HOST}:{self.MONGO_PORT}"
+        host = self.MONGO_HOST or "localhost"
+        port = self.MONGO_PORT or 27017
+        database = self.MONGO_INITDB_DATABASE or "appdb"
+        username = (self.MONGO_INITDB_ROOT_USERNAME or "").strip()
+        password = (self.MONGO_INITDB_ROOT_PASSWORD or "").strip()
+        auth_source = (self.MONGO_AUTH_SOURCE or "").strip()
+
+        creds = ""
+        if username and password:
+            creds = f"{username}:{password}@"
+
+        query = ""
+        if auth_source and creds:
+            query = f"?authSource={auth_source}"
+
+        return f"mongodb://{creds}{host}:{port}/{database}{query}"
 
     @property
     def neo4j_url(self) -> str:
