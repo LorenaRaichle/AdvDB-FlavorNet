@@ -1,0 +1,712 @@
+{
+  "0": [
+    "chicken",
+    "breasts",
+    "place chicken",
+    "minutes",
+    "chicken breasts",
+    "heat",
+    "add chicken",
+    "sauce"
+  ],
+  "1": [
+    "salad",
+    "dressing",
+    "lettuce",
+    "toss",
+    "ingredients",
+    "bowl",
+    "vinegar",
+    "salad mix"
+  ],
+  "2": [
+    "cake",
+    "pan",
+    "beat",
+    "flour",
+    "sugar",
+    "batter",
+    "bake",
+    "chocolate"
+  ],
+  "3": [
+    "cookies",
+    "cookie",
+    "dough",
+    "sheet",
+    "sugar",
+    "cookie sheet",
+    "chocolate",
+    "baking"
+  ],
+  "4": [
+    "potatoes",
+    "potato",
+    "tender",
+    "potato salad",
+    "salt",
+    "minutes",
+    "pepper",
+    "mashed"
+  ],
+  "5": [
+    "pork",
+    "chops",
+    "pork chops",
+    "meat",
+    "roast",
+    "sauce",
+    "heat",
+    "minutes"
+  ],
+  "6": [
+    "soup",
+    "simmer",
+    "add",
+    "heat",
+    "pot",
+    "broth",
+    "boil",
+    "cook"
+  ],
+  "7": [
+    "apples",
+    "apple",
+    "cinnamon",
+    "sugar",
+    "pie",
+    "applesauce",
+    "cake",
+    "bake"
+  ],
+  "8": [
+    "beans",
+    "green beans",
+    "green",
+    "bean",
+    "bacon",
+    "water",
+    "cook",
+    "drain"
+  ],
+  "9": [
+    "pasta",
+    "spaghetti",
+    "cook",
+    "sauce",
+    "add",
+    "drain",
+    "garlic",
+    "cheese"
+  ],
+  "10": [
+    "dough",
+    "yeast",
+    "rise",
+    "let rise",
+    "rolls",
+    "flour",
+    "let",
+    "knead"
+  ],
+  "11": [
+    "tortilla",
+    "taco",
+    "tortillas",
+    "cheese",
+    "salsa",
+    "chicken",
+    "chips",
+    "beans"
+  ],
+  "12": [
+    "fish",
+    "fillets",
+    "cod",
+    "oil",
+    "pepper",
+    "heat",
+    "salt",
+    "minutes fish"
+  ],
+  "13": [
+    "rice",
+    "curry",
+    "heat",
+    "add",
+    "stir",
+    "water",
+    "cook",
+    "oil"
+  ],
+  "14": [
+    "corn",
+    "cornbread",
+    "corn bread",
+    "cornmeal",
+    "bake",
+    "casserole",
+    "mix",
+    "ingredients"
+  ],
+  "15": [
+    "pecan",
+    "pecans",
+    "pie",
+    "sugar",
+    "bake",
+    "vanilla",
+    "butter",
+    "beat"
+  ],
+  "16": [
+    "sausage",
+    "sausages",
+    "cook",
+    "minutes",
+    "brown sausage",
+    "skillet",
+    "heat",
+    "add"
+  ],
+  "17": [
+    "pie",
+    "crust",
+    "shell",
+    "pie shell",
+    "pie mix",
+    "pie crust",
+    "chocolate",
+    "whip"
+  ],
+  "18": [
+    "jello",
+    "pineapple",
+    "jell",
+    "salad",
+    "chill",
+    "gelatin",
+    "dissolve",
+    "whip"
+  ],
+  "19": [
+    "shrimp",
+    "add shrimp",
+    "heat",
+    "add",
+    "cook",
+    "oil",
+    "prawns",
+    "minutes"
+  ],
+  "20": [
+    "pizza",
+    "dough",
+    "crust",
+    "cheese",
+    "pepperoni",
+    "pizza pan",
+    "pizza sauce",
+    "spread"
+  ],
+  "21": [
+    "steak",
+    "steaks",
+    "grill",
+    "meat",
+    "pepper",
+    "marinade",
+    "medium",
+    "sauce"
+  ],
+  "22": [
+    "broccoli",
+    "casserole",
+    "cook broccoli",
+    "cheese",
+    "bake",
+    "dish",
+    "soup",
+    "350"
+  ],
+  "23": [
+    "pumpkin",
+    "pumpkin pie",
+    "pie",
+    "bake",
+    "sugar",
+    "beat",
+    "mix",
+    "350"
+  ],
+  "24": [
+    "zucchini",
+    "add zucchini",
+    "oil",
+    "bake",
+    "minutes",
+    "bread",
+    "pans",
+    "mix"
+  ],
+  "25": [
+    "roast",
+    "beef",
+    "meat",
+    "stew",
+    "pot",
+    "hours",
+    "cook",
+    "pot roast"
+  ],
+  "26": [
+    "cranberry",
+    "cranberries",
+    "cranberry sauce",
+    "orange",
+    "sugar",
+    "mixture",
+    "bowl",
+    "cool"
+  ],
+  "27": [
+    "peanut",
+    "peanut butter",
+    "chocolate",
+    "butter",
+    "melt",
+    "balls",
+    "cereal",
+    "chips"
+  ],
+  "28": [
+    "salmon",
+    "fish",
+    "smoked salmon",
+    "fillets",
+    "place",
+    "skin",
+    "lemon",
+    "pepper"
+  ],
+  "29": [
+    "squash",
+    "butternut",
+    "butternut squash",
+    "minutes",
+    "tender",
+    "soup",
+    "heat",
+    "add"
+  ],
+  "30": [
+    "meatballs",
+    "balls",
+    "sauce",
+    "meatball",
+    "meat balls",
+    "meat",
+    "shape",
+    "mix"
+  ],
+  "31": [
+    "brownies",
+    "brownie",
+    "chocolate",
+    "pan",
+    "vanilla",
+    "butter",
+    "batter",
+    "cool"
+  ],
+  "32": [
+    "sweet",
+    "sweet potato",
+    "sweet potatoes",
+    "potatoes",
+    "potato",
+    "bake",
+    "oven",
+    "casserole"
+  ],
+  "33": [
+    "tuna",
+    "salad",
+    "casserole",
+    "pepper",
+    "pasta",
+    "add",
+    "oil",
+    "mix"
+  ],
+  "34": [
+    "blueberry",
+    "blueberries",
+    "muffins",
+    "sugar",
+    "muffin",
+    "batter",
+    "flour",
+    "baking"
+  ],
+  "35": [
+    "muffins",
+    "muffin",
+    "bran",
+    "muffin cups",
+    "muffins preheat",
+    "batter",
+    "dry ingredients",
+    "cups"
+  ],
+  "36": [
+    "peaches",
+    "peach",
+    "sugar",
+    "cobbler",
+    "cream",
+    "fruit",
+    "pour",
+    "pie"
+  ],
+  "37": [
+    "mushrooms",
+    "spinach",
+    "mushroom",
+    "caps",
+    "stems",
+    "cheese",
+    "mushroom caps",
+    "minutes"
+  ],
+  "38": [
+    "ice",
+    "ice cream",
+    "cream",
+    "frosting",
+    "vanilla",
+    "milk",
+    "beat",
+    "freezer"
+  ],
+  "39": [
+    "turkey",
+    "stuffing",
+    "breast",
+    "turkey breast",
+    "roasting",
+    "gravy",
+    "minutes",
+    "heat"
+  ],
+  "40": [
+    "loaf",
+    "meatloaf",
+    "meat loaf",
+    "meat",
+    "loaf pan",
+    "ketchup",
+    "bake",
+    "mix"
+  ],
+  "41": [
+    "chili",
+    "beef",
+    "simmer",
+    "beans",
+    "meat",
+    "chili powder",
+    "add",
+    "pot"
+  ],
+  "42": [
+    "cheesecake",
+    "crust",
+    "cream cheese",
+    "cream",
+    "pan",
+    "beat",
+    "springform",
+    "cheese"
+  ],
+  "43": [
+    "banana",
+    "loaf",
+    "banana bread",
+    "bread",
+    "loaf pan",
+    "bananas",
+    "pan",
+    "nut bread"
+  ],
+  "44": [
+    "glass",
+    "cocktail",
+    "shaker",
+    "ice",
+    "martini",
+    "shake",
+    "strain",
+    "garnish"
+  ],
+  "45": [
+    "fudge",
+    "chocolate",
+    "peanut butter",
+    "peanut",
+    "vanilla",
+    "butter",
+    "squares",
+    "milk"
+  ],
+  "46": [
+    "crab",
+    "crabmeat",
+    "cakes",
+    "crab meat",
+    "dip",
+    "mayonnaise",
+    "serve",
+    "add crab"
+  ],
+  "47": [
+    "pineapple",
+    "cake",
+    "cake mix",
+    "mix",
+    "sugar",
+    "bake",
+    "350",
+    "pan"
+  ],
+  "48": [
+    "ball",
+    "cheese",
+    "roll",
+    "ball roll",
+    "pecans",
+    "crackers",
+    "cream cheese",
+    "shape"
+  ],
+  "49": [
+    "sandwich",
+    "bread",
+    "sandwiches",
+    "slices",
+    "slice",
+    "cheese",
+    "spread",
+    "slice bread"
+  ],
+  "50": [
+    "biscuits",
+    "biscuit",
+    "dough",
+    "cut",
+    "buttermilk",
+    "cutter",
+    "baking",
+    "flour"
+  ],
+  "51": [
+    "dip",
+    "dip mix",
+    "spinach",
+    "ingredients",
+    "mix",
+    "mix ingredients",
+    "serve",
+    "chill"
+  ],
+  "52": [
+    "punch",
+    "ginger ale",
+    "ale",
+    "ginger",
+    "sherbet",
+    "ice",
+    "juice",
+    "add ginger"
+  ],
+  "53": [
+    "macaroni",
+    "cheese",
+    "macaroni cheese",
+    "cook macaroni",
+    "mac",
+    "pasta",
+    "cook",
+    "mac cheese"
+  ],
+  "54": [
+    "blender",
+    "blend",
+    "ingredients blender",
+    "banana",
+    "smooth",
+    "blender blend",
+    "blend smooth",
+    "ingredients"
+  ],
+  "55": [
+    "pancakes",
+    "pancake",
+    "batter",
+    "griddle",
+    "bubbles",
+    "flip",
+    "syrup",
+    "milk"
+  ],
+  "56": [
+    "pickles",
+    "cucumbers",
+    "jars",
+    "jar",
+    "vinegar",
+    "pickled",
+    "boil",
+    "water"
+  ],
+  "57": [
+    "lasagna",
+    "noodles",
+    "sauce",
+    "mozzarella",
+    "cheese",
+    "layer",
+    "ricotta",
+    "lasagne"
+  ],
+  "58": [
+    "dip",
+    "taco",
+    "chips",
+    "cheese",
+    "tortilla chips",
+    "tortilla",
+    "serve",
+    "chili"
+  ],
+  "59": [
+    "ham",
+    "ham cheese",
+    "glaze",
+    "rolls",
+    "place ham",
+    "mustard",
+    "cheese",
+    "oven"
+  ],
+  "60": [
+    "asparagus",
+    "add asparagus",
+    "spears",
+    "tender",
+    "water",
+    "pepper",
+    "minutes",
+    "heat"
+  ],
+  "61": [
+    "burgers",
+    "patties",
+    "burger",
+    "grill",
+    "buns",
+    "patty",
+    "bun",
+    "hamburger"
+  ],
+  "62": [
+    "lamb",
+    "meat",
+    "chops",
+    "heat",
+    "oil",
+    "cook",
+    "garlic",
+    "add"
+  ],
+  "63": [
+    "salsa",
+    "cilantro",
+    "tomatoes",
+    "salsa combine",
+    "ingredients",
+    "chips",
+    "lime",
+    "processor"
+  ],
+  "64": [
+    "enchiladas",
+    "tortillas",
+    "enchilada",
+    "tortilla",
+    "cheese",
+    "sauce",
+    "chicken",
+    "seam"
+  ],
+  "65": [
+    "eggplant",
+    "slices",
+    "oil",
+    "minutes",
+    "garlic",
+    "heat",
+    "salt",
+    "sauce"
+  ],
+  "66": [
+    "ribs",
+    "short",
+    "sauce",
+    "grill",
+    "hours",
+    "meat",
+    "rub",
+    "pot"
+  ],
+  "67": [
+    "oatmeal",
+    "cookies",
+    "oats",
+    "cookie",
+    "drop",
+    "vanilla",
+    "baking",
+    "sheet"
+  ],
+  "68": [
+    "slaw",
+    "cabbage",
+    "coleslaw",
+    "dressing",
+    "vinegar",
+    "toss",
+    "mix",
+    "cabbage mixture"
+  ],
+  "69": [
+    "lentils",
+    "lentil",
+    "bulgur",
+    "heat",
+    "lentils tender",
+    "add",
+    "water",
+    "simmer"
+  ],
+  "70": [
+    "bread",
+    "french",
+    "french toast",
+    "toast",
+    "slices",
+    "bread slices",
+    "egg mixture",
+    "slice"
+  ]
+}
