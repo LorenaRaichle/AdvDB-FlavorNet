@@ -27,6 +27,16 @@ docker compose down
 - Neo4j - Browser http UI at http://localhost:7474 - Bolt at bolt://localhost:7687 - user: `neo4j`, password: `app_pw1234`
 
 
+## Commands to run the whole system
+
+```bash
+docker pull lorena107/recipes-db:latest
+docker compose pull mongo
+
+docker compose up -d mongo
+docker exec -it mongo mongosh --quiet --eval 'db.getSiblingDB("appdb").getCollectionNames()'
+docker compose up -d
+```
 
 ## mongo: to do Lorena
 - recipes stored in data/recipe_nlg as csv, notebook "recipe_preprocessing" does loading, preprocessing and adding of new tags etc
