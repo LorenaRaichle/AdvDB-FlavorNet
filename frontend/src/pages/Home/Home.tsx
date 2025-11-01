@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Navbar from "../../components/Navbar";
-import { getTopRecipesByCuisine } from "../../api/recipes.api";
+import {
+  getRecommendedRecipes,
+  searchRecipes,
+} from "../../api/recipes.api";
+import { useUserStore } from "../../store/userStore";
 
 type Recipe = {
   title?: string;
@@ -13,20 +17,8 @@ type Recipe = {
   ingredients?: string[] | string;
   recipe_id?: string | number;
   id?: string | number;
+  score?: number;
 };
-
-const cuisineOptions = [
-  "All Cuisines",
-  "Italian",
-  "Mexican",
-  "Mediterranean",
-  "Japanese",
-  "Indian",
-  "Thai",
-];
-
-const difficultyOptions = ["All Difficulties", "Easy", "Medium", "Advanced"];
-const timeOptions = ["Any Time", "15 min", "25 min", "40 min", "60+ min"];
 
 const cuisineIcons: Record<string, string> = {
   italian: "🍝",
@@ -55,61 +47,70 @@ const formatIngredients = (ingredients?: string[] | string) => {
 export default function Home() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [query, setQuery] = useState("");
-  const [selectedCuisine, setSelectedCuisine] = useState<string>(
-    cuisineOptions[1]
-  );
-  const [selectedDifficulty, setSelectedDifficulty] = useState<string>(
-    difficultyOptions[0]
-  );
-  const [selectedTime, setSelectedTime] = useState<string>(timeOptions[0]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const user = useUserStore((state) => state.user);
 
-  const fetchRecipes = async (cuisine: string) => {
+  const fetchRecommended = useCallback(async () => {
+    if (!user?.id) {
+      setRecipes([]);
+      setIsLoading(false);
+      setError("Please log in to see personalized recipes.");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
-      const cuisineParam = cuisine === "All Cuisines" ? "" : cuisine;
-      const response = await getTopRecipesByCuisine(
-        cuisineParam || "Italian"
-      );
-      setRecipes(response.data || []);
+      const response = await getRecommendedRecipes(user.id);
+      const items = Array.isArray(response.data?.data)
+        ? response.data.data
+        : [];
+      setRecipes(items);
     } catch (err) {
       console.error(err);
-      setError("We couldn't load recipes right now. Please try again later.");
+      setError(
+        "We couldn't load personalized recipes right now. Please try again later."
+      );
+      setRecipes([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?.id]);
+
+  const handleSearch = async (event?: React.FormEvent) => {
+    event?.preventDefault();
+    if (!user?.id) {
+      setError("Please log in to search your personalized recipe collection.");
+      return;
+    }
+
+    const searchTerm = query.trim();
+    if (!searchTerm) {
+      await fetchRecommended();
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await searchRecipes(user.id, searchTerm);
+      const items = Array.isArray(response.data?.data)
+        ? response.data.data
+        : [];
+      setRecipes(items);
+    } catch (err) {
+      console.error(err);
+      setError("Vector search failed. Please try a different query shortly.");
       setRecipes([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const filteredRecipes = useMemo(() => {
-    const searchTerm = query.trim().toLowerCase();
-
-    return recipes.filter((recipe) => {
-      const title = (recipe.title || recipe.name || "").toLowerCase();
-      const cuisine = (recipe.cuisine || "").toLowerCase();
-
-      const matchesQuery = searchTerm ? title.includes(searchTerm) : true;
-      const matchesCuisine =
-        selectedCuisine === "All Cuisines"
-          ? true
-          : cuisine === selectedCuisine.toLowerCase();
-
-      // Difficulty and time are presentational for now.
-      return matchesQuery && matchesCuisine;
-    });
-  }, [recipes, query, selectedCuisine]);
-
-  const handleSearch = (event?: React.FormEvent) => {
-    event?.preventDefault();
-    fetchRecipes(selectedCuisine);
-  };
-
   useEffect(() => {
-    handleSearch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCuisine]);
+    fetchRecommended();
+  }, [fetchRecommended]);
 
   return (
     <>
@@ -131,61 +132,25 @@ export default function Home() {
               className="mt-8 space-y-4"
               role="search"
             >
-              <div className="relative">
-                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">
-                  🔍
-                </span>
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search recipes..."
-                  className="w-full rounded-2xl border border-orange-100 bg-orange-50/60 pl-12 pr-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-100"
-                />
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <select
-                  value={selectedCuisine}
-                  onChange={(event) => setSelectedCuisine(event.target.value)}
-                  className="rounded-xl border border-orange-100 bg-white px-4 py-3 text-sm text-slate-600 focus:border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-100"
-                >
-                  {cuisineOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={selectedDifficulty}
-                  onChange={(event) => setSelectedDifficulty(event.target.value)}
-                  className="rounded-xl border border-orange-100 bg-white px-4 py-3 text-sm text-slate-600 focus:border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-100"
-                >
-                  {difficultyOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={selectedTime}
-                  onChange={(event) => setSelectedTime(event.target.value)}
-                  className="rounded-xl border border-orange-100 bg-white px-4 py-3 text-sm text-slate-600 focus:border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-100"
-                >
-                  {timeOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+              <div className="flex flex-col gap-3 md:flex-row">
+                <div className="relative flex-1">
+                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">
+                    🔍
+                  </span>
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Search for cravings, moods, or ingredients..."
+                    className="w-full rounded-2xl border border-orange-100 bg-orange-50/60 pl-12 pr-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-100"
+                  />
+                </div>
 
                 <button
                   type="submit"
-                  className="rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                  className="rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
                 >
-                  Search Recipes
+                  Search Recommendations
                 </button>
               </div>
             </form>
@@ -200,38 +165,32 @@ export default function Home() {
                 </div>
               </div>
             ) : error ? (
-              <div className="rounded-3xl border border-red-100 bg-red-50/70 px-6 py-10 text-center text-sm text-red-600">
+              <div className="rounded-3xl border border-red-100 bg-red-50/70 px-6 py-8 text-center text-sm text-red-600">
                 {error}
               </div>
-            ) : filteredRecipes.length === 0 ? (
+            ) : recipes.length === 0 ? (
               <div className="rounded-3xl border border-orange-100 bg-white px-6 py-12 text-center text-sm text-slate-500">
                 No recipes matched your filters. Try adjusting your search.
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-7 md:grid-cols-2 xl:grid-cols-3">
-                {filteredRecipes.map((recipe) => {
+                {recipes.map((recipe) => {
                   const title = recipe.title || recipe.name || "Untitled Recipe";
-                  const cuisine = recipe.cuisine || selectedCuisine;
+                  const cuisine = recipe.cuisine || "Any cuisine";
                   const icon =
                     cuisineIcons[cuisine.toLowerCase()] ||
                     stablePick(title, Object.values(cuisineIcons)) ||
                     "🍽️";
 
-                  const difficulty =
-                    selectedDifficulty === "All Difficulties"
-                      ? stablePick(title, difficultyOptions.slice(1))
-                      : selectedDifficulty;
+                  const scoreBadge =
+                    typeof recipe.score === "number"
+                      ? `Match: ${(recipe.score * 100).toFixed(0)}%`
+                      : null;
 
-                  const time =
-                    selectedTime === "Any Time"
-                      ? stablePick(title, timeOptions.slice(1))
-                      : selectedTime;
-
-                  const badges = [
-                    cuisine || "Any cuisine",
-                    difficulty,
-                    time,
-                  ];
+                  const badges = [cuisine || "Any cuisine"].filter(Boolean);
+                  if (scoreBadge) {
+                    badges.push(scoreBadge);
+                  }
 
                   const description =
                     recipe.summary ||
