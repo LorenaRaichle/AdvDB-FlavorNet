@@ -24,7 +24,12 @@ RUN pip install --no-cache-dir --upgrade pip \
         "pandas>=2.3.3" \
         "psycopg2-binary>=2.9.11" \
         "pymongo>=4.15.3" \
+        "motor>=3.6.0" \
         "qdrant-client>=1.15.1" \
+        "sentence-transformers==2.7.0" \
+        "torch>=2.4" \
+        "transformers==4.40.2" \
+        "tqdm>=4.67.1" \
         "fastapi>=0.115.0" \
         "uvicorn[standard]>=0.30.0" \
         "sqlalchemy[asyncio]>=2.0.36" \
