@@ -20,6 +20,8 @@ wheels/
 .DS_Store
 
 vectorDB/data/.qdrant_ingest.ckpt
+
+vectorDB/BERTartifact/bertopic_model
 # Big datasets
 mongoDB/data/recipe_nlg/
 mongoDB/init/03_recipe_csv_sample.jsonl

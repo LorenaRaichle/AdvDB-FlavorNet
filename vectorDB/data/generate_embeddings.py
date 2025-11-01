@@ -1,3 +1,4 @@
+# vectorDB/data/generate_embeddings.py
 #!/usr/bin/env python3
 """
 Embed recipes and upsert to Qdrant.
@@ -51,6 +52,14 @@ ING_VECTOR_NAME  = "v_ingredients"
 
 
 # ---------------------- Helpers ----------------------
+class QdrantUnavailable(RuntimeError):
+    """Raised when the Qdrant service cannot be reached."""
+
+    def __init__(self, message: str, last_error: Exception | None = None) -> None:
+        super().__init__(message)
+        self.last_error = last_error
+
+
 def stable_id(slug: str) -> int:
     """Deterministic positive int id."""
     h = hashlib.sha256((slug or "").encode("utf-8")).hexdigest()
@@ -115,6 +124,69 @@ def write_ckpt(n_done: int) -> None:
     CKPT_FILE.write_text(str(n_done))
 
 
+def _is_conn_error(exc: Exception) -> bool:
+    msg = (str(exc) or "").lower()
+    return any(
+        token in msg
+        for token in (
+            "unavailable",
+            "failed to connect",
+            "connection refused",
+            "connecterror",
+            "timed out",
+            "timeout",
+            "deadline exceeded",
+        )
+    )
+
+
+def wait_for_service(client: QdrantClient, attempts: int = 5, delay: float = 2.0) -> None:
+    """Probe the Qdrant service, retrying on transport errors."""
+
+    last_err: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            client.get_collections()
+            return
+        except Exception as exc:  # pragma: no cover - network/SDK errors are runtime driven
+            if not _is_conn_error(exc):
+                raise
+            last_err = exc
+            if attempt < attempts:
+                print(
+                    f"Attempt {attempt}/{attempts}: Qdrant unavailable ({exc}). Retrying in {delay:.1f}s…",
+                    file=sys.stderr,
+                )
+                time.sleep(delay)
+
+    raise QdrantUnavailable("Qdrant service is not reachable", last_err)
+
+
+def ensure_client_connection() -> QdrantClient:
+    """Return a Qdrant client with a reachable transport, preferring gRPC."""
+
+    client = make_client(use_grpc=True)
+    try:
+        wait_for_service(client)
+        return client
+    except QdrantUnavailable as grpc_err:
+        print("gRPC unavailable, retrying connection over HTTP…")
+        http_client = make_client(use_grpc=False)
+        try:
+            wait_for_service(http_client)
+            return http_client
+        except QdrantUnavailable as http_err:
+            print(
+                f"ERROR: Unable to reach Qdrant at {HOST}:{PORT} (gRPC {GRPC_PORT})."
+                " Ensure the service is running and accessible.",
+                file=sys.stderr,
+            )
+            last = http_err.last_error or grpc_err.last_error
+            if last:
+                print(f"Last connection error: {last}", file=sys.stderr)
+            raise
+
+
 # ---------------------- Upsert utils ----------------------
 def _chunk(points, n):
     for i in range(0, len(points), n):
@@ -135,8 +207,7 @@ def _safe_upsert(client: QdrantClient, collection_name: str, chunk: List[PointSt
         client.upsert(collection_name=collection_name, points=chunk)
         return client
     except Exception as e:
-        msg = (str(e) or "").lower()
-        if "unavailable" in msg or "failed to connect" in msg or "connection refused" in msg:
+        if _is_conn_error(e):
             http_client = make_client(use_grpc=False)
             http_client.upsert(collection_name=collection_name, points=chunk)
             return http_client
@@ -198,17 +269,31 @@ def upsert_batch(
 
 
 # ---------------------- Collection management ----------------------
-def ensure_collection(client: QdrantClient, dim: int) -> None:
-    """
-    Try non-deprecated exists+create; if unsupported by server/client, fall back to recreate_collection.
-    Works across older client/server versions.
-    """
-    try:
-        # Newer clients:
-        if hasattr(client, "collection_exists") and client.collection_exists(COLLECTION):
-            client.delete_collection(COLLECTION)
-        if hasattr(client, "create_collection"):
-            client.create_collection(
+def ensure_collection(client: QdrantClient, dim: int) -> QdrantClient:
+    """Ensure the target collection exists, returning a client that can reach it."""
+
+    def _create_with(client_obj: QdrantClient) -> QdrantClient:
+        try:
+            # Prefer explicit exists/delete/create when available (newer clients)
+            if hasattr(client_obj, "collection_exists") and client_obj.collection_exists(COLLECTION):
+                client_obj.delete_collection(COLLECTION)
+            if hasattr(client_obj, "create_collection"):
+                client_obj.create_collection(
+                    collection_name=COLLECTION,
+                    vectors_config={
+                        TEXT_VECTOR_NAME: VectorParams(size=dim, distance=Distance.COSINE),
+                        ING_VECTOR_NAME:  VectorParams(size=dim, distance=Distance.COSINE),
+                    },
+                    optimizers_config=OptimizersConfigDiff(default_segment_number=2),
+                )
+                return client_obj
+            raise AttributeError("create_collection not available on this client")
+        except Exception as inner:
+            # Connection issues bubble up so we can retry over HTTP
+            if _is_conn_error(inner):
+                raise
+            # Older clients/servers fall back to recreate_collection
+            client_obj.recreate_collection(
                 collection_name=COLLECTION,
                 vectors_config={
                     TEXT_VECTOR_NAME: VectorParams(size=dim, distance=Distance.COSINE),
@@ -216,19 +301,16 @@ def ensure_collection(client: QdrantClient, dim: int) -> None:
                 },
                 optimizers_config=OptimizersConfigDiff(default_segment_number=2),
             )
-            return
-        # If create_collection isn't available, drop to except to use recreate
-        raise AttributeError("create_collection not available on this client")
-    except Exception:
-        # Older clients/servers:
-        client.recreate_collection(
-            collection_name=COLLECTION,
-            vectors_config={
-                TEXT_VECTOR_NAME: VectorParams(size=dim, distance=Distance.COSINE),
-                ING_VECTOR_NAME:  VectorParams(size=dim, distance=Distance.COSINE),
-            },
-            optimizers_config=OptimizersConfigDiff(default_segment_number=2),
-        )
+            return client_obj
+
+    try:
+        return _create_with(client)
+    except Exception as e:
+        if _is_conn_error(e):
+            print("gRPC unavailable, retrying collection setup over HTTP…")
+            http_client = make_client(use_grpc=False)
+            return _create_with(http_client)
+        raise
 
 
 # ---------------------- Main ----------------------
@@ -241,13 +323,18 @@ def main() -> None:
     model = SentenceTransformer(MODEL_NAME)
 
     print(f"Connecting to Qdrant: {HOST}:{PORT} (gRPC {GRPC_PORT}), collection={COLLECTION}")
-    client = make_client(use_grpc=True)
+    try:
+        client = ensure_client_connection()
+    except QdrantUnavailable as err:
+        if str(err):
+            print(str(err), file=sys.stderr)
+        sys.exit(2)
 
     # infer vector size once
     dim = int(model.encode(["probe"], normalize_embeddings=True)[0].shape[0])
 
     print("Creating collection (or recreating if exists)…")
-    ensure_collection(client, dim)
+    client = ensure_collection(client, dim)
 
     total_lines = count_lines(JSONL_PATH)
     print(f"Embedding & upserting ~{total_lines} docs in batches of {BATCH_SIZE}…")
