@@ -50,25 +50,22 @@ class Settings(BaseSettings):
     @property
     def mongo_url(self) -> str:
         """Standard Mongo connection string."""
-        if self.MONGO_INITDB_ROOT_USERNAME and self.MONGO_INITDB_ROOT_PASSWORD:
-            host = self.MONGO_HOST or "localhost"
-            port = self.MONGO_PORT or 27017
-            database = self.MONGO_INITDB_DATABASE or "admin"
-            auth_source = self.MONGO_AUTH_SOURCE
-
-            query = ""
-            if auth_source:
-                query = f"?authSource={auth_source}"
-
-            return (
-                f"mongodb://{self.MONGO_INITDB_ROOT_USERNAME}:"
-                f"{self.MONGO_INITDB_ROOT_PASSWORD}@{host}:{port}/"
-                f"{database}{query}"
-            )
-
         host = self.MONGO_HOST or "localhost"
         port = self.MONGO_PORT or 27017
-        return f"mongodb://{host}:{port}"
+        database = self.MONGO_INITDB_DATABASE or "appdb"
+        username = (self.MONGO_INITDB_ROOT_USERNAME or "").strip()
+        password = (self.MONGO_INITDB_ROOT_PASSWORD or "").strip()
+        auth_source = (self.MONGO_AUTH_SOURCE or "").strip()
+
+        creds = ""
+        if username and password:
+            creds = f"{username}:{password}@"
+
+        query = ""
+        if auth_source and creds:
+            query = f"?authSource={auth_source}"
+
+        return f"mongodb://{creds}{host}:{port}/{database}{query}"
 
     @property
     def neo4j_url(self) -> str:
