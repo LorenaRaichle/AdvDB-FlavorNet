@@ -38,3 +38,14 @@ Unique slugs:          1242364
 Duplicate slugs:       988741
 Blank lines:           0
 Bad JSON lines:        0
+
+
+to do Qdrant
+- docker compose pull qdrant
+docker compose up -d qdrant
+On first boot, the entrypoint sees an empty volume and unpacks your baked data into /qdrant/storage.
+Check progress: docker logs -f qdrant (you’ll see the “Restoring from seed tarball…” message once).
+Verify:
+curl -s http://localhost:6333/collections/recipes | jq
+curl -s -X POST http://localhost:6333/collections/recipes/points/count \
+  -H 'Content-Type: application/json' -d '{"exact": false}' | jq

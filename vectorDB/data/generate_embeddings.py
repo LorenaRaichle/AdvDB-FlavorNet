@@ -1,4 +1,3 @@
-
 """
 Embed recipes and upsert to Qdrant (resumable ingest).
 
@@ -8,7 +7,8 @@ Writes: Qdrant collection with two named vectors:
         - v_ingredients  : embedding of ingredient_tags (bag)
 
 Environment variables (all optional):
-  QDRANT_HOST=localhost
+  QDRANT_URL=http://127.0.0.1:6333  # preferred if using HTTP
+  QDRANT_HOST=127.0.0.1             # used when QDRANT_URL is not set
   QDRANT_PORT=6333
   QDRANT_GRPC_PORT=6334
   QDRANT_API_KEY=
@@ -19,11 +19,19 @@ Environment variables (all optional):
   CKPT_FILE=.qdrant_ingest.ckpt
   QDRANT_RESET=1        # only when you want to DROP & recreate
   PAYLOAD_FIELDS=title,slug,ingredient_tags,dietary_tags,cuisine,course
+
+  # Optional topic metadata:
+  ADD_TOPIC=1
+  BERTOPIC_MODEL_PATH=/path/to/bertopic_model
+  TOPIC_TERMS_PATH=/path/to/topic_terms.json
+  SAMPLE_PAYLOADS=10
 """
 
 import os, json, sys, hashlib, time
 from pathlib import Path
-from typing import Dict, Any, Iterable, List
+from typing import Dict, Any, Iterable, List, Optional, Tuple
+from urllib.parse import urlparse
+
 from dotenv import load_dotenv
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
@@ -33,9 +41,11 @@ from qdrant_client.models import (
     Distance,
     OptimizersConfigDiff,
     PointStruct,
+    HnswConfigDiff,          # <-- added
 )
 
 load_dotenv()
+
 # ---------------------- Config ----------------------
 HOST = os.getenv("QDRANT_HOST", "127.0.0.1")
 PORT = int(os.getenv("QDRANT_PORT", "6333"))
@@ -45,17 +55,17 @@ COLLECTION = os.getenv("QDRANT_COLLECTION", "recipes")
 
 MODEL_NAME = os.getenv("EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 JSONL_PATH = Path(os.getenv("JSONL_PATH", "/Users/Lorena/Developer/FlavorNet/mongoDB/init/03_recipe_csv_sample.jsonl"))
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", "128"))
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "16"))  # gentler default
 CKPT_FILE = Path(os.getenv("CKPT_FILE", ".qdrant_ingest.ckpt"))
 RESET = os.getenv("QDRANT_RESET", "0") == "1"
 
+MAX_RETRIES = int(os.getenv("QDRANT_MAX_RETRIES", "12"))    # wider default
+BASE_SLEEP  = float(os.getenv("QDRANT_RETRY_DELAY", "2.0")) # gentler default
 
 BERTOPIC_MODEL_PATH = os.getenv("BERTOPIC_MODEL_PATH")
 ADD_TOPIC = os.getenv("ADD_TOPIC", "0") == "1"
 TOPIC_TERMS_PATH = os.getenv("TOPIC_TERMS_PATH")
 SAMPLE_PAYLOADS = int(os.getenv("SAMPLE_PAYLOADS", "10"))
-
-
 
 PAYLOAD_FIELDS = set(
     k.strip() for k in os.getenv("PAYLOAD_FIELDS", "").split(",") if k.strip()
@@ -64,10 +74,9 @@ PAYLOAD_FIELDS = set(
 TEXT_VECTOR_NAME = "v_text"
 ING_VECTOR_NAME = "v_ingredients"
 
-
 # LOAD BERTmodel
 topic_model = None
-topic_terms = {}
+topic_terms: Dict[str, Any] = {}
 
 print(f"[cfg] ADD_TOPIC={ADD_TOPIC}  BERTOPIC_MODEL_PATH={BERTOPIC_MODEL_PATH!r}", file=sys.stderr)
 if ADD_TOPIC and (not BERTOPIC_MODEL_PATH or not Path(BERTOPIC_MODEL_PATH).exists()):
@@ -77,15 +86,10 @@ if ADD_TOPIC and (not BERTOPIC_MODEL_PATH or not Path(BERTOPIC_MODEL_PATH).exist
 if ADD_TOPIC:
     from bertopic import BERTopic
     print(f"Loading BERTopic from: {BERTOPIC_MODEL_PATH}")
-    if not BERTOPIC_MODEL_PATH:
-        print("ERROR: ADD_TOPIC=1 but BERTOPIC_MODEL_PATH is not set", file=sys.stderr)
-        sys.exit(3)
     topic_model = BERTopic.load(BERTOPIC_MODEL_PATH)
     if TOPIC_TERMS_PATH and Path(TOPIC_TERMS_PATH).exists():
-        import json
         with open(TOPIC_TERMS_PATH, "r", encoding="utf-8") as f:
             topic_terms = json.load(f)
-
 
 # ---------------------- Helpers ----------------------
 class QdrantUnavailable(RuntimeError):
@@ -93,13 +97,29 @@ class QdrantUnavailable(RuntimeError):
         super().__init__(message)
         self.last_error = last_error
 
-
 def stable_id(slug: str) -> int:
     h = hashlib.sha256((slug or "").encode("utf-8")).hexdigest()
     return int(h[:15], 16)
 
+def _clean_url(val: Optional[str]) -> Optional[str]:
+    if not val:
+        return None
+    val = val.strip().strip('"').strip("'")
+    p = urlparse(val)
+    if not (p.scheme and p.hostname and p.port):
+        raise ValueError(f"QDRANT_URL must include scheme, host, and port. Got: {val!r}")
+    return f"{p.scheme}://{p.hostname}:{p.port}"
 
 def make_client(use_grpc: bool = True) -> QdrantClient:
+    url = _clean_url(os.getenv("QDRANT_URL"))
+    if url and not use_grpc:
+        return QdrantClient(
+            url=url,
+            api_key=API_KEY,
+            timeout=120.0,
+            prefer_grpc=False,
+            check_compatibility=False,
+        )
     return QdrantClient(
         host=HOST,
         port=PORT,
@@ -110,17 +130,14 @@ def make_client(use_grpc: bool = True) -> QdrantClient:
         check_compatibility=False,
     )
 
-
 def build_text_input(doc: Dict[str, Any]) -> str:
     title = (doc.get("title") or "").strip()
     steps = " ".join(doc.get("steps") or [])
     return f"{title}. {steps}".strip()
 
-
 def build_ing_input(doc: Dict[str, Any]) -> str:
     tags = doc.get("ingredient_tags") or []
     return " ".join(tags)
-
 
 def build_payload(doc: Dict[str, Any]) -> Dict[str, Any]:
     full = {
@@ -136,7 +153,6 @@ def build_payload(doc: Dict[str, Any]) -> Dict[str, Any]:
         return full
     return {k: full.get(k) for k in PAYLOAD_FIELDS if k in full}
 
-
 def iter_jsonl(path: Path) -> Iterable[Dict[str, Any]]:
     with path.open("r", encoding="utf-8") as f:
         for line in f:
@@ -145,35 +161,33 @@ def iter_jsonl(path: Path) -> Iterable[Dict[str, Any]]:
                 continue
             yield json.loads(s)
 
-
 def read_ckpt() -> int:
     try:
         return int(CKPT_FILE.read_text().strip())
     except Exception:
         return 0
 
-
 def write_ckpt_lines(n_lines: int) -> None:
     CKPT_FILE.write_text(str(n_lines))
 
-
 def _is_conn_error(exc: Exception) -> bool:
     msg = (str(exc) or "").lower()
-    return any(
-        token in msg
-        for token in (
-            "unavailable",
-            "failed to connect",
-            "connection refused",
-            "connecterror",
-            "timed out",
-            "timeout",
-            "deadline exceeded",
-        )
-    )
+    return any(t in msg for t in (
+        "unavailable",
+        "failed to connect",
+        "connection refused",
+        "connecterror",
+        "nodename nor servname",
+        "server disconnected without sending a response",
+        "socket closed",
+        "broken pipe",
+        "connection reset by peer",
+        "timed out",
+        "timeout",
+        "deadline exceeded",
+    ))
 
-
-def wait_for_service(client: QdrantClient, attempts: int = 5, delay: float = 2.0) -> None:
+def wait_for_service(client: QdrantClient, attempts: int = 30, delay: float = 2.0) -> None:
     last_err: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
@@ -191,24 +205,21 @@ def wait_for_service(client: QdrantClient, attempts: int = 5, delay: float = 2.0
                 time.sleep(delay)
     raise QdrantUnavailable("Qdrant service is not reachable", last_err)
 
-
 def ensure_client_connection() -> QdrantClient:
-    client = make_client(use_grpc=True)
     try:
+        client = make_client(use_grpc=True)
         wait_for_service(client)
         return client
-    except QdrantUnavailable as grpc_err:
+    except QdrantUnavailable:
         print("gRPC unavailable, retrying connection over HTTP…")
         http_client = make_client(use_grpc=False)
         wait_for_service(http_client)
         return http_client
 
-
 # ---------------------- Upsert utils ----------------------
 def _chunk(points, n):
     for i in range(0, len(points), n):
         yield points[i : i + n]
-
 
 def _safe_upsert(client: QdrantClient, collection_name: str, chunk: List[PointStruct]) -> QdrantClient:
     try:
@@ -219,20 +230,20 @@ def _safe_upsert(client: QdrantClient, collection_name: str, chunk: List[PointSt
         return client
     except Exception as e:
         if _is_conn_error(e):
-            http_client = make_client(use_grpc=False)
-            http_client.upsert(collection_name=collection_name, points=chunk)
-            return http_client
+            time.sleep(BASE_SLEEP)
+            fresh = ensure_client_connection()
+            fresh.upsert(collection_name=collection_name, points=chunk)
+            return fresh
         raise
-
 
 def upsert_with_retry(
     client: QdrantClient,
     collection_name: str,
     points: List[PointStruct],
-    max_retries: int = 5,
-    base_sleep: float = 1.0,
+    max_retries: int = MAX_RETRIES,
+    base_sleep: float = BASE_SLEEP,
 ) -> QdrantClient:
-    try_sizes = [len(points), 128, 64, 32, 16]
+    try_sizes = [len(points), 128, 64, 32, 16, 8, 4]
     last_err = None
     for size in try_sizes:
         for chunk in _chunk(points, size):
@@ -242,13 +253,14 @@ def upsert_with_retry(
                     break
                 except Exception as e:
                     last_err = e
-                    time.sleep(base_sleep * (2**attempt))
+                    if not _is_conn_error(e):
+                        raise
+                    time.sleep(base_sleep * (2 ** attempt))
                     if attempt == max_retries - 1:
                         raise last_err
     return client
 
-
-#include Bertopics here
+# ---------------------- Batch upsert with optional topics ----------------------
 def upsert_batch(
     client: QdrantClient,
     model: SentenceTransformer,
@@ -258,22 +270,18 @@ def upsert_batch(
     topic_model=None,
     topic_terms: dict | None = None,
     sample_quota: int = 0,
-) -> tuple[QdrantClient, int, List[Dict[str, Any]]]:
+) -> Tuple[QdrantClient, int, List[Dict[str, Any]]]:
     text_vecs = model.encode(texts, normalize_embeddings=True)
     ing_vecs  = model.encode(ings,  normalize_embeddings=True)
 
-    # --- topic inference (optional) ---
     topics = None
     probs = None
     if topic_model is not None:
         topics, probs = topic_model.transform(texts, embeddings=text_vecs)
-        # standardize to Python lists for easy indexing/printing
         if topics is not None and hasattr(topics, "tolist"):
             topics = topics.tolist()
         if probs is not None and hasattr(probs, "tolist"):
             probs = probs.tolist()
-
-        # optional quick log
         assigned = sum(1 for t in topics if (t is not None and t != -1))
         outliers = len(topics) - assigned
         print(f"[topics] assigned={assigned} outliers={outliers}")
@@ -288,7 +296,6 @@ def upsert_batch(
 
         payload = build_payload(doc)
 
-        # attach topic metadata (if available)
         if topics is not None:
             t_id = topics[i]
             t_prob = probs[i] if probs is not None else None
@@ -315,14 +322,9 @@ def upsert_batch(
         client = upsert_with_retry(client, COLLECTION, points)
     return client, len(points), samples
 
-
-
-
 def count_lines(path: Path) -> int:
-    """Return total number of lines in the JSONL file (including blanks)."""
     with path.open("r", encoding="utf-8") as f:
         return sum(1 for _ in f)
-
 
 # ---------------------- Collection management ----------------------
 def ensure_collection(client: QdrantClient, dim: int) -> QdrantClient:
@@ -333,23 +335,23 @@ def ensure_collection(client: QdrantClient, dim: int) -> QdrantClient:
         print(f"RESET=1 → deleting existing collection '{COLLECTION}'…")
         client.delete_collection(COLLECTION)
 
-    def _create_with(client_obj: QdrantClient) -> QdrantClient:
-        client_obj.create_collection(
-            collection_name=COLLECTION,
-            vectors_config={
-                TEXT_VECTOR_NAME: VectorParams(size=dim, distance=Distance.COSINE),
-                ING_VECTOR_NAME: VectorParams(size=dim, distance=Distance.COSINE),
-            },
-            optimizers_config=OptimizersConfigDiff(default_segment_number=2),
-        )
-        return client_obj
-
     print(f"Creating new collection '{COLLECTION}' (dim={dim})…")
-    return _create_with(client)
-
+    client.create_collection(
+        collection_name=COLLECTION,
+        vectors_config={
+            TEXT_VECTOR_NAME: VectorParams(size=dim, distance=Distance.COSINE, on_disk=True),  # <-- on-disk
+            ING_VECTOR_NAME:  VectorParams(size=dim, distance=Distance.COSINE, on_disk=True),  # <-- on-disk
+        },
+        # gentler index to reduce RAM during build
+        hnsw_config=HnswConfigDiff(m=16, ef_construct=64),
+        optimizers_config=OptimizersConfigDiff(default_segment_number=2),
+    )
+    return client
 
 # ---------------------- Main ----------------------
 def main() -> None:
+    print(f"[cfg] QDRANT_URL={os.getenv('QDRANT_URL')!r}", file=sys.stderr)
+
     if not JSONL_PATH.exists():
         print(f"ERROR: JSONL not found at {JSONL_PATH}", file=sys.stderr)
         sys.exit(1)
@@ -357,8 +359,13 @@ def main() -> None:
     print(f"Loading embedding model: {MODEL_NAME}")
     model = SentenceTransformer(MODEL_NAME)
 
-    print(f"Connecting to Qdrant: {HOST}:{PORT} (gRPC {GRPC_PORT}), collection={COLLECTION}")
-    client = ensure_client_connection()
+    # Prefer HTTP if QDRANT_URL is present; otherwise try gRPC with HTTP fallback.
+    if os.getenv("QDRANT_URL"):
+        client = make_client(use_grpc=False)
+        wait_for_service(client)
+    else:
+        print(f"Connecting to Qdrant: {HOST}:{PORT} (gRPC {GRPC_PORT}), collection={COLLECTION}")
+        client = ensure_client_connection()
 
     dim = int(model.encode(["probe"], normalize_embeddings=True)[0].shape[0])
     client = ensure_collection(client, dim)
@@ -366,8 +373,7 @@ def main() -> None:
     total_lines = count_lines(JSONL_PATH)
     lines_done = read_ckpt()
     points_done = 0
-
-    printed = 0  # how many payload samples we showed so far
+    printed = 0
 
     print(f"Embedding & upserting ~{total_lines} docs in batches of {BATCH_SIZE}…")
     with tqdm(total=total_lines, unit="line", initial=lines_done) as pbar:
@@ -381,14 +387,13 @@ def main() -> None:
             docs_cache.append(doc)
 
             if len(docs_cache) >= BATCH_SIZE:
-                # ask upsert_batch to give us up to the remaining sample quota
                 quota = max(0, SAMPLE_PAYLOADS - printed)
                 client, n, samples = upsert_batch(
                     client, model, docs_cache, to_embed_text, to_embed_ing,
                     topic_model=topic_model, topic_terms=topic_terms,
                     sample_quota=quota
                 )
-                # print any samples returned
+
                 for sp in samples:
                     print("\n[PAYLOAD SAMPLE]")
                     print(json.dumps(sp, ensure_ascii=False, indent=2))
@@ -423,9 +428,7 @@ def main() -> None:
             pbar.update(len(docs_cache))
             print(f"[last batch] upserted {n} points.")
 
-
     print(f"Done. Processed {lines_done} lines, upserted ~{points_done} unique slugs into '{COLLECTION}'.")
-
 
 if __name__ == "__main__":
     main()

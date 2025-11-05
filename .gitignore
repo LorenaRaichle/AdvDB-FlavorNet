@@ -25,3 +25,20 @@ vectorDB/BERTartifact/bertopic_model
 # Big datasets
 mongoDB/data/recipe_nlg/
 mongoDB/init/03_recipe_csv_sample.jsonl
+
+# Qdrant seed & snapshots
+qdrant_storage.tgz
+qdrant_storage.tar.xz
+storage.snapshot
+*.snapshot
+
+# Mongo archives
+mongo-prebuilt/appdb.archive
+*.archive
+
+# Ingest checkpoints/artifacts
+.qdrant_ingest.ckpt
+
+# Ensure image dir only tracks code, not data
+qdrant-image/qdrant_storage.tgz
+qdrant-image/qdrant_storage.tar.xz

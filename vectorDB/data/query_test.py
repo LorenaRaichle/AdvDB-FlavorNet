@@ -1,147 +1,158 @@
 #!/usr/bin/env python3
 """
-query_test.py — sanity checks for the 'recipes' Qdrant collection.
-
-What it does:
-  1) Prints collection status and a hint of the vector schema
-  2) Prints exact & fast (approx) counts
-  3) Prints a couple of filtered counts (dietary/allergen tags)
-  4) Runs quick top-5 searches on both named vectors: v_text and v_ingredients
+Quick Qdrant sanity-check:
+- Connects with a generous timeout (and prefers gRPC if available)
+- Prints collection status & basic config
+- Gets an approximate count (fast, exact=False)
+- Scrolls a few points to verify queries work without embeddings
 """
 
-import inspect
+import os
+import sys
+import time
+from typing import Optional
+
 from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchAny
-from sentence_transformers import SentenceTransformer
+from qdrant_client.http.exceptions import UnexpectedResponse, ResponseHandlingException
 
-# ---- Config ----
-HOST = "127.0.0.1"
-PORT = 6333
-COLLECTION = "recipes"
-MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
-# ---- Helpers ----
-def count_points(client: QdrantClient, collection: str, flt: Filter | None = None, exact: bool = True) -> int:
+DEFAULT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+DEFAULT_API_KEY = os.getenv("QDRANT_API_KEY")
+DEFAULT_COLLECTION = os.getenv("QDRANT_COLLECTION", "recipes")
+
+TIMEOUT_SECONDS = float(os.getenv("QDRANT_TIMEOUT", "120.0"))
+SCROLL_LIMIT = int(os.getenv("QDRANT_SCROLL_LIMIT", "5"))
+
+
+def make_client(url: str, api_key: Optional[str], timeout: float) -> QdrantClient:
     """
-    Version-tolerant wrapper around QdrantClient.count().
-    Different client versions use different kwarg names:
-      - filter
-      - query_filter
-      - count_filter
-    Falls back to positional if needed.
+    Try to enable gRPC if the installed client supports it. Fall back to HTTP.
     """
-    sig = inspect.signature(client.count)
-    params = {p.name for p in sig.parameters.values()}
-
-    if flt is None:
-        # Unfiltered is straightforward on every version
-        return client.count(collection, exact=exact).count
-
-    if "filter" in params:
-        return client.count(collection, filter=flt, exact=exact).count
-    if "query_filter" in params:
-        return client.count(collection, query_filter=flt, exact=exact).count
-    if "count_filter" in params:
-        return client.count(collection, count_filter=flt, exact=exact).count
-
-    # Last resort: try positional (collection, filter, exact)
+    # Try prefer_grpc (newer clients)
     try:
-        return client.count(collection, flt, exact).count
-    except TypeError as e:
-        raise RuntimeError(
-            "Unsupported qdrant-client count() signature for filtered counts"
-        ) from e
+        return QdrantClient(url=url, api_key=api_key, timeout=timeout, prefer_grpc=True)
+    except TypeError:
+        # Try grpc=True (older flag)
+        try:
+            return QdrantClient(url=url, api_key=api_key, timeout=timeout, grpc=True)
+        except TypeError:
+            # Fall back to plain HTTP
+            return QdrantClient(url=url, api_key=api_key, timeout=timeout)
 
 
-def print_collection_overview(c: QdrantClient, collection: str) -> None:
-    info = c.get_collection(collection)
-    status = getattr(info, "status", "unknown")
-    points_count = getattr(info, "points_count", "n/a")
+def robust_count(client: QdrantClient, collection: str, exact: bool = False,
+                 retries: int = 3, backoff: float = 2.0) -> int:
+    """
+    Count with basic retries to dodge transient timeouts.
+    """
+    last_err = None
+    for i in range(retries):
+        try:
+            return client.count(collection, count_filter=None, exact=exact).count
+        except Exception as e:
+            last_err = e
+            if i < retries - 1:
+                sleep_s = backoff ** i
+                print(f"[warn] count(exact={exact}) failed: {e!r}. Retrying in {sleep_s:.1f}s...")
+                time.sleep(sleep_s)
+    # bubble up the last error if we gave up
+    raise last_err
+
+
+def print_collection_info(client: QdrantClient, collection: str) -> None:
+    info = client.get_collection(collection)
     print(f"Collection: {collection}")
-    print(f"  status: {status}")
-    print(f"  points_count (server): {points_count}")
+    try:
+        status = getattr(info, "status", None)
+        print(f"  status: {status}")
+    except Exception:
+        pass
 
-    # Try to display vector names/config in a version-safe way
-    printed_schema = False
-    for attr in ("vectors_config", "config", "params"):
-        cfg = getattr(info, attr, None)
+    # points_count is sometimes nested under 'points_count' or 'vectors_count'; handle gracefully
+    try:
+        # Newer clients expose 'points_count' and 'indexed_vectors_count'
+        pc = getattr(info, "points_count", None)
+        if pc is not None:
+            print(f"  points_count (server): {pc}")
+    except Exception:
+        pass
+
+    try:
+        cfg = getattr(info, "config", None)
         if cfg:
-            print(f"  {attr}: {cfg}")
-            printed_schema = True
-            break
-    if not printed_schema:
-        print("  (vector schema not available via this client's get_collection response)")
+            print(f"  config: {cfg}")
+    except Exception:
+        pass
+
+
+def sanity_scroll(client: QdrantClient, collection: str, limit: int = 5):
+    """
+    Scroll a few points to ensure basic queries work. We don't fetch payloads/vectors to keep it cheap.
+    """
+    points, next_page = client.scroll(
+        collection_name=collection,
+        limit=limit,
+        with_payload=False,
+        with_vectors=False,
+    )
+    print(f"\nScroll sample (first {limit} point IDs):")
+    if not points:
+        print("  (no points returned)")
+    else:
+        for p in points:
+            # p.id may be UUID or int
+            pid = getattr(p, "id", None)
+            print(f"  - {pid}")
+    if next_page is not None:
+        print(f"  next_page: {next_page}")
 
 
 def main():
-    # Connect
-    c = QdrantClient(host=HOST, port=PORT, check_compatibility=False)
+    url = DEFAULT_URL
+    api_key = DEFAULT_API_KEY
+    collection = DEFAULT_COLLECTION
 
-    # 1) Basic collection info
-    print_collection_overview(c, COLLECTION)
+    print(f"Connecting to Qdrant at {url} (timeout={TIMEOUT_SECONDS}s, prefer gRPC if available)...")
+    client = make_client(url, api_key, TIMEOUT_SECONDS)
 
-    # 2) Counts
-    total_exact = count_points(c, COLLECTION, flt=None, exact=True)
-    print(f"Exact total points: {total_exact}")
+    # Verify collection exists
+    try:
+        existing = [c.name for c in client.get_collections().collections]
+    except Exception as e:
+        print(f"[error] Could not list collections: {e}")
+        sys.exit(1)
 
-    total_fast = count_points(c, COLLECTION, flt=None, exact=False)
-    print(f"Fast approx total: {total_fast}")
+    if collection not in existing:
+        print(f"[error] Collection '{collection}' not found. Existing collections: {existing}")
+        sys.exit(1)
 
-    # 3) Filtered counts to sanity-check payload fields
-    diet_filter = Filter(
-        must=[
-            FieldCondition(
-                key="dietary_tags",
-                match=MatchAny(any=["vegan", "vegetarian"]),
-            )
-        ]
-    )
-    diet_count = count_points(c, COLLECTION, flt=diet_filter, exact=True)
-    print(f"With dietary tag vegan|vegetarian: {diet_count}")
+    # Print high-level info
+    try:
+        print_collection_info(client, collection)
+    except Exception as e:
+        print(f"[warn] Could not fetch collection info cleanly: {e}")
 
-    allergen_filter = Filter(
-        must=[
-            FieldCondition(
-                key="allergen_tags",
-                match=MatchAny(any=["nuts", "gluten"]),
-            )
-        ]
-    )
-    allergen_count = count_points(c, COLLECTION, flt=allergen_filter, exact=True)
-    print(f"With allergen tag nuts|gluten: {allergen_count}")
+    # Fast approximate count
+    try:
+        approx = robust_count(client, collection, exact=False, retries=3)
+        print(f"\nApproximate total points (exact=False): {approx}")
+    except (UnexpectedResponse, ResponseHandlingException, Exception) as e:
+        print(f"[error] Approximate count failed: {e}")
 
-    # 4) Quick KNN searches on both named vectors
-    st = SentenceTransformer(MODEL)
+    # Optional: exact count (can be slow). Commented out by default.
+    # try:
+    #     exact = robust_count(client, collection, exact=True, retries=3)
+    #     print(f"Exact total points (exact=True): {exact}")
+    # except Exception as e:
+    #     print(f"[warn] Exact count failed (this can be normal on large collections without indexes): {e}")
 
-    # v_text search
-    q_text = "creamy baked pasta"
-    qvec_text = st.encode([q_text], normalize_embeddings=True)[0].tolist()
-    hits_text = c.search(
-        collection_name=COLLECTION,
-        query_vector=("v_text", qvec_text),
-        limit=5,
-        with_payload=True,
-    )
-    print(f"\nTop-5 for v_text: “{q_text}”")
-    for h in hits_text:
-        title = h.payload.get("title")
-        diet = h.payload.get("dietary_tags")
-        print(f"  {h.score:.4f}  {title}  {diet}")
+    # Do a minimal query (scroll) to confirm retrieval works
+    try:
+        sanity_scroll(client, collection, limit=SCROLL_LIMIT)
+    except Exception as e:
+        print(f"[error] Scroll failed: {e}")
 
-    # v_ingredients search
-    q_ing = "pasta cream parmesan tomato"
-    qvec_ing = st.encode([q_ing], normalize_embeddings=True)[0].tolist()
-    hits_ing = c.search(
-        collection_name=COLLECTION,
-        query_vector=("v_ingredients", qvec_ing),
-        limit=5,
-        with_payload=True,
-    )
-    print(f"\nTop-5 for v_ingredients: “{q_ing}”")
-    for h in hits_ing:
-        title = h.payload.get("title")
-        ings = h.payload.get("ingredient_tags")
-        print(f"  {h.score:.4f}  {title}  {ings}")
+    print("\nDone.")
 
 
 if __name__ == "__main__":
