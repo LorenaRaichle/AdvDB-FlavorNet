@@ -1,0 +1,4 @@
+**
+!qdrant_storage.tgz
+!Dockerfile
+!docker-entrypoint.sh
