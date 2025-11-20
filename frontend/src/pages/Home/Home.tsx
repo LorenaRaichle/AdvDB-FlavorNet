@@ -158,42 +158,55 @@ export default function Home() {
       <main className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-orange-50/80 via-orange-50 to-white pb-16">
         <div className="mx-auto w-full max-w-6xl px-6 pt-10">
           <section className="rounded-3xl border border-orange-100 bg-white px-8 py-10 shadow-[0_20px_60px_rgba(249,115,22,0.08)]">
-            <div className="space-y-2">
-              <h1 className="text-2xl font-semibold text-slate-800">
-                Find Recipes
-              </h1>
-              <p className="text-sm text-slate-500">
-                Search your collection and discover dishes that match your taste.
-              </p>
-            </div>
-
-            <form
-              onSubmit={handleSearch}
-              className="mt-8 space-y-4"
-              role="search"
-            >
-              <div className="flex flex-col gap-3 md:flex-row">
-                <div className="relative flex-1">
-                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">
-                    🔍
-                  </span>
-                  <input
-                    type="search"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Search for cravings, moods, or ingredients..."
-                    className="w-full rounded-2xl border border-orange-100 bg-orange-50/60 pl-12 pr-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-100"
-                  />
+            <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[1.4fr_1fr]">
+              <div>
+                <div className="space-y-2">
+                  <h1 className="text-2xl font-semibold text-slate-800">
+                    Find Recipes
+                  </h1>
+                  <p className="text-sm text-slate-500">
+                    Search your collection and discover dishes that match your taste.
+                  </p>
                 </div>
 
-                <button
-                  type="submit"
-                  className="rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                <form
+                  onSubmit={handleSearch}
+                  className="mt-8 space-y-4"
+                  role="search"
                 >
-                  Search Recommendations
-                </button>
+                  <div className="flex flex-col gap-3 md:flex-row">
+                    <div className="relative flex-1">
+                      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">
+                        🔍
+                      </span>
+                      <input
+                        type="search"
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="Search for cravings, moods, or ingredients..."
+                        className="w-full rounded-2xl border border-orange-100 bg-orange-50/60 pl-12 pr-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-100"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                    >
+                      Search Recommendations
+                    </button>
+                  </div>
+                </form>
               </div>
-            </form>
+
+              <div className="flex justify-center">
+                <img
+                  src="/saladbowl.png"
+                  alt="Salad bowl illustration"
+                  className="max-h-64 w-auto rounded-3xl border border-orange-100 bg-orange-50/60 p-4 shadow-[0_12px_35px_rgba(249,115,22,0.12)]"
+                  loading="lazy"
+                />
+              </div>
+            </div>
           </section>
 
           <section className="mt-12">

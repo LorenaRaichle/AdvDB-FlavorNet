@@ -34,6 +34,14 @@ export default function AuthLayout({
                   favorites, and keep track of what you love.
                 </p>
               </div>
+              <div className="flex justify-center">
+                <img
+                  src="/saladbowl.png"
+                  alt="Salad bowl illustration"
+                  className="max-h-56 w-auto rounded-2xl border border-white/10 bg-white/10 p-3 shadow-[0_12px_35px_rgba(0,0,0,0.2)]"
+                  loading="lazy"
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <p className="text-sm font-semibold uppercase tracking-wider text-orange-100/80">
