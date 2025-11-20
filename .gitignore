@@ -13,8 +13,6 @@ wheels/
 
 **/.ipynb_checkpoints/
 
-.env
-.env.*
 !.env.example  # keep a safe template
 
 .DS_Store

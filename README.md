@@ -10,6 +10,14 @@ docker compose up --build -d
 Frontend to use the whole Multi Database System and look through recipes. 
 Frontend: http://localhost:5173  
 
+
+## Frontend Instructions
+1. Create a user account and set preferences (using email, password)
+2. Login with your new credentials 
+3. "Landing Page of Recipes" : get inspired while the system already considers your settings (allergies, diet, dislikes)
+4. Query and search for specific ideas 
+
+
 To stop:
 ```bash
 docker compose down
