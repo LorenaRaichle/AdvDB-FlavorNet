@@ -10,51 +10,65 @@ import { useUserStore } from "../../store/userStore";
 type Recipe = {
   title?: string;
   name?: string;
-  cuisine?: string;
   dietary_tags?: string[];
   rating_avg?: number | string;
   rating?: number | string;
   summary?: string;
   description?: string;
   ingredients?: string[] | string;
+  ingredient_tags?: string[];
   steps?: string[] | string;
+  images?: string[] | string;
+  nutrition?: unknown;
+  source_url?: string;
   recipe_id?: string | number;
   id?: string | number;
   score?: number;
   slug?: string;
 };
 
-const cuisineIcons: Record<string, string> = {
-  italian: "🍝",
-  mexican: "🌮",
-  mediterranean: "🥙",
-  japanese: "🍣",
-  indian: "🍛",
-  thai: "🍜",
-  asian: "🥢",
-  american: "🍔",
-};
-
 const dietIcons: Record<string, string> = {
-  vegan: "🌱",
-  vegetarian: "🥕",
-  "gluten-free": "🚫🌾",
-  pescatarian: "🐟",
-  keto: "🥩",
-  paleo: "🍖",
-  halal: "🕌",
-  kosher: "✡️",
-  dairyfree: "🥛🚫",
-  "dairy-free": "🥛🚫",
-  "low-carb": "🥑",
 };
 
-const stablePick = (key: string, values: string[]) => {
-  if (values.length === 0) return "";
-  if (!key) return values[0];
-  const sum = key.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return values[sum % values.length];
-};
+const categoryIcons: { keywords: string[]; icon: string }[] = [
+  { keywords: ["pasta", "spaghetti", "penne", "macaroni", "lasagna"], icon: "🍝" },
+  { keywords: ["cake", "cupcake", "brownie", "torte", "cheesecake"], icon: "🍰" },
+  { keywords: ["potato", "potatoes", "sweet potato", "fries"], icon: "🥔" },
+  { keywords: ["soup", "broth", "stew"], icon: "🍲" },
+  { keywords: ["bean", "beans"], icon: "🫘" },
+  { keywords: ["bread", "bun", "bagel", "toast"], icon: "🍞" },
+  { keywords: ["fish", "cod", "salmon", "tilapia", "mackerel"], icon: "🐟" },
+  { keywords: ["cornbread", "corn bread", "corn"], icon: "🌽" },
+  { keywords: ["sausage"], icon: "🌭" },
+  { keywords: ["cranberry", "cranberries", "blueberry"], icon: "🫐" },
+  { keywords: ["pineapple", "tropical"], icon: "🍍" },
+  { keywords: ["pizza", "crust"], icon: "🍕" },
+  { keywords: ["casserole"], icon: "🥘" },
+  { keywords: ["zucchini", "squash"], icon: "🥒" },
+  { keywords: ["muffin", "cupcake"], icon: "🧁" },
+  { keywords: ["cobbler", "peach"], icon: "🥧" },
+  { keywords: ["ice cream", "frosting"], icon: "🍨" },
+  { keywords: ["meatloaf", "meat loaf", "meat"], icon: "🥩" },
+  { keywords: ["banana bread", "banana loaf", "banana"], icon: "🍌" },
+  { keywords: ["crab", "crabmeat", "crab cake"], icon: "🦀" },
+  { keywords: ["cheese", "cheddar", "gouda"], icon: "🧀" },
+  { keywords: ["biscuit", "biscuits"], icon: "🍪" },
+  { keywords: ["punch", "ginger ale", "ale"], icon: "🥤" },
+  { keywords: ["smoothie", "blender", "banana"], icon: "🥤" },
+  { keywords: ["pickle", "cucumber"], icon: "🥒" },
+  { keywords: ["dip", "taco chips", "chips"], icon: "🥣" },
+  { keywords: ["asparagus"], icon: "🥦" },
+  { keywords: ["lamb", "chops"], icon: "🍖" },
+  { keywords: ["enchilada", "tortilla", "wrap"], icon: "🌯" },
+  { keywords: ["rib", "bbq"], icon: "🍖" },
+  { keywords: ["slaw", "cabbage", "coleslaw"], icon: "🥗" },
+  { keywords: ["lemon"], icon: "🍋" },
+  { keywords: ["orange"], icon: "🍊" },
+  { keywords: ["apple"], icon: "🍎" },
+  { keywords: ["salad"], icon: "🥗" },
+  { keywords: ["strawberry"], icon: "🍓" },
+  { keywords: ["sandwich", "burger"], icon: "🥙" },
+];
 
 const formatIngredients = (ingredients?: string[] | string) => {
   if (!ingredients) return "Tailored to your saved preferences.";
@@ -202,33 +216,31 @@ export default function Home() {
               <div className="grid grid-cols-1 gap-7 md:grid-cols-2 xl:grid-cols-3">
                 {recipes.map((recipe) => {
                   const title = recipe.title || recipe.name || "Untitled Recipe";
-                  const cuisine = recipe.cuisine || "Any cuisine";
+                  const ingredientsTokens = Array.isArray(recipe.ingredient_tags)
+                    ? recipe.ingredient_tags.map((t) => t.toLowerCase())
+                    : [];
+                  const tokens = `${title} ${ingredientsTokens.join(" ")}`.toLowerCase();
+                  const categoryIcon =
+                    categoryIcons.find(({ keywords }) =>
+                      keywords.some((kw) => tokens.includes(kw))
+                    )?.icon || null;
                   const dietaryTags = Array.isArray(recipe.dietary_tags)
                     ? recipe.dietary_tags.filter(Boolean)
                     : [];
-                  const dietIcon =
-                    dietaryTags
-                      .map((tag) => dietIcons[tag.toLowerCase().replace(/\s+/g, "-")] || dietIcons[tag.toLowerCase().replace(/[^a-z]/g, "")])
-                      .find(Boolean) || null;
-                  const icon =
-                    dietIcon ||
-                    cuisineIcons[cuisine.toLowerCase()] ||
-                    stablePick(title, Object.values(cuisineIcons)) ||
-                    "🍽️";
+                  const icon = categoryIcon || "🍽️";
 
                   const scoreBadge =
                     typeof recipe.score === "number"
                       ? `Match: ${(recipe.score * 100).toFixed(0)}%`
                       : null;
 
-                  const dietBadges =
-                    dietaryTags.length > 0 ? dietaryTags : ["Any diet"];
+                  const dietBadges = dietaryTags.length > 0 ? dietaryTags : ["Any diet"];
                   const badges = scoreBadge ? [...dietBadges, scoreBadge] : dietBadges;
 
                   const description =
                     recipe.summary ||
                     recipe.description ||
-                    `Curated ${cuisine} recipe tailored to your taste profile.`;
+                    `Curated recipe tailored to your taste profile.`;
 
                   return (
                     <article

@@ -170,6 +170,8 @@ class RecommendationService:
             "title": 1,
             "summary": 1,
             "description": 1,
+            "steps": 1,
+            "instructions": 1,
             "cuisine": 1,
             "course": 1,
             "dietary_tags": 1,

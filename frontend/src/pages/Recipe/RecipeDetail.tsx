@@ -19,6 +19,9 @@ type Recipe = {
   slug?: string;
   id?: string | number;
   steps?: string[] | string;
+  images?: string[] | string;
+  nutrition?: unknown;
+  source_url?: string;
 };
 
 const toList = (value?: string[] | string): string[] => {
@@ -28,6 +31,12 @@ const toList = (value?: string[] | string): string[] => {
     .split(/[,;]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+};
+
+const normalizeUrl = (url?: string): string | undefined => {
+  if (!url) return undefined;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `https://${url}`;
 };
 
 export default function RecipeDetail() {
@@ -50,6 +59,7 @@ export default function RecipeDetail() {
   const ingredients =
     toList(recipe?.ingredients) || toList(recipe?.ingredient_tags);
   const steps = toList(recipe?.steps);
+  const images = toList(recipe?.images);
 
   const dietaryTags = recipe?.dietary_tags?.filter(Boolean) ?? [];
   const flavourTags = recipe?.flavour_tags?.filter(Boolean) ?? [];
@@ -113,6 +123,16 @@ export default function RecipeDetail() {
                 <h1 className="text-2xl font-semibold text-slate-800">
                   {title}
                 </h1>
+                {recipe?.source_url ? (
+                  <a
+                    href={normalizeUrl(recipe.source_url)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-600 hover:bg-orange-100"
+                  >
+                    View Source ↗
+                  </a>
+                ) : null}
               </div>
               <p className="text-sm text-slate-600 leading-relaxed">{description}</p>
               <div className="flex flex-wrap gap-2">
@@ -160,22 +180,6 @@ export default function RecipeDetail() {
                   )}
                 </ol>
               </div>
-
-              <h2 className="text-base font-semibold text-slate-800">
-                Ingredients
-              </h2>
-              <ul className="mt-3 space-y-2 text-sm text-slate-700">
-                {ingredients.length ? (
-                  ingredients.map((item, idx) => (
-                    <li key={`${item}-${idx}`} className="flex gap-2">
-                      <span className="mt-[6px] h-1.5 w-1.5 rounded-full bg-orange-400" />
-                      <span>{item}</span>
-                    </li>
-                  ))
-                ) : (
-                  <li className="text-slate-500">Ingredients coming soon.</li>
-                )}
-              </ul>
             </div>
 
             <div className="rounded-3xl border border-orange-100 bg-white px-6 py-6 shadow-sm">
@@ -198,15 +202,75 @@ export default function RecipeDetail() {
                 {recipe.rating ? (
                   <div className="flex justify-between">
                     <span className="text-slate-500">Rating</span>
-                    <span className="font-medium">
-                      {recipe.rating}
-                      {recipe.rating_count ? ` (${recipe.rating_count})` : ""}
-                    </span>
+                  <span className="font-medium">
+                    {recipe.rating}
+                    {recipe.rating_count ? ` (${recipe.rating_count})` : ""}
+                  </span>
+                </div>
+              ) : null}
+
+                <div className="mt-4">
+                  <p className="text-sm font-semibold text-slate-800">Ingredients</p>
+                  <ul className="mt-2 space-y-2 text-sm text-slate-700">
+                    {ingredients.length ? (
+                      ingredients.map((item, idx) => (
+                        <li key={`${item}-${idx}`} className="flex gap-2">
+                          <span className="mt-[6px] h-1.5 w-1.5 rounded-full bg-orange-400" />
+                          <span>{item}</span>
+                        </li>
+                      ))
+                    ) : (
+                      <li className="text-slate-500">Ingredients coming soon.</li>
+                    )}
+                  </ul>
+                </div>
+
+                {recipe.nutrition ? (
+                  <div className="mt-3 space-y-1">
+                    <p className="text-sm font-semibold text-slate-800">Nutrition</p>
+                    {typeof recipe.nutrition === "string" ? (
+                      <p className="text-sm text-slate-600">{recipe.nutrition}</p>
+                    ) : Array.isArray(recipe.nutrition) ? (
+                      <ul className="space-y-1 text-sm text-slate-600 list-disc list-inside">
+                        {recipe.nutrition.map((item, idx) => (
+                          <li key={`nut-${idx}`}>{String(item)}</li>
+                        ))}
+                      </ul>
+                    ) : typeof recipe.nutrition === "object" ? (
+                      <ul className="space-y-1 text-sm text-slate-600">
+                        {Object.entries(recipe.nutrition as Record<string, unknown>).map(
+                          ([key, val]) => (
+                            <li key={`nut-${key}`} className="flex justify-between gap-3">
+                              <span className="text-slate-500">{key}</span>
+                              <span className="font-medium">{String(val)}</span>
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
             </div>
           </section>
+
+          {images.length ? (
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {images.map((src, idx) => (
+                <div
+                  key={`${src}-${idx}`}
+                  className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm"
+                >
+                  <img
+                    src={src}
+                    alt={title}
+                    className="h-64 w-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              ))}
+            </section>
+          ) : null}
         </div>
       </main>
     </>
