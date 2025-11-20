@@ -17,10 +17,6 @@ class Settings(BaseSettings):
     MONGO_PORT: int | None = 27017
     MONGO_AUTH_SOURCE: str | None = "admin"
 
-    # Neo4j
-    APP_NEO4J_URI: str | None = "bolt://localhost:7687"
-    APP_NEO4J_USER: str | None = "neo4j"
-    APP_NEO4J_PASSWORD: str | None = "password"
 
     # Qdrant
     QDRANT_URL: str | None = "http://qdrant:6333"
@@ -70,10 +66,7 @@ class Settings(BaseSettings):
 
         return f"mongodb://{creds}{host}:{port}/{database}{query}"
 
-    @property
-    def neo4j_url(self) -> str:
-        """Bolt URI for Neo4j driver."""
-        return self.APP_NEO4J_URI
+
 
     @property
     def qdrant_url(self) -> str:
