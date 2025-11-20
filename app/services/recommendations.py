@@ -6,7 +6,7 @@ from bson import ObjectId
 from fastapi import HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from qdrant_client import QdrantClient
-from qdrant_client.models import FieldCondition, Filter, MatchAny, MatchValue
+from qdrant_client.models import FieldCondition, Filter, MatchAny, ScoredPoint
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -34,33 +34,23 @@ class RecommendationService:
         limit: int = 12,
     ) -> List[Dict[str, Any]]:
         prefs = await self._load_preferences(user_id)
-        query = self._build_mongo_query(prefs)
+        q_filter = self._build_qdrant_filter(prefs)
+        profile_query = self._build_profile_query(prefs)
 
-        projection = {
-            "_id": 1,
-            "slug": 1,
-            "title": 1,
-            "summary": 1,
-            "description": 1,
-            "cuisine": 1,
-            "course": 1,
-            "dietary_tags": 1,
-            "allergen_tags": 1,
-            "ingredient_tags": 1,
-            "ingredients": 1,
-            "rating": 1,
-        }
+        try:
+            vector = self._embed_query_text(profile_query)
+            hits = self._run_vector_search(vector, q_filter, limit)
+            items = await self._build_results_from_hits(hits, limit)
+            if items:
+                return items
+        except HTTPException as err:
+            if err.status_code == 404:
+                raise
+            # other HTTP errors (embedding/Qdrant) fall back to MongoDB
+        except Exception:
+            pass
 
-        cursor = (
-            self.mongo_db.recipes.find(query, projection)
-            .sort([("rating.value", -1), ("title", 1)])
-            .limit(limit)
-        )
-        docs = await cursor.to_list(length=limit)
-        if not docs:
-            return []
-
-        return [self._format_recipe(doc) for doc in docs]
+        return await self._load_top_mongo_recipes(prefs, limit)
 
     async def search_with_vector_store(
         self,
@@ -73,64 +63,9 @@ class RecommendationService:
 
         prefs = await self._load_preferences(user_id)
         q_filter = self._build_qdrant_filter(prefs)
-        model = get_embedding_model()
-
-        try:
-            vector = model.encode([query_text], normalize_embeddings=True)[0].tolist()
-        except Exception as err:  # pragma: no cover - model errors surface at runtime
-            raise HTTPException(status_code=500, detail="Embedding model failure.") from err
-
-        try:
-            hits = self.qdrant.search(
-                collection_name=self.collection,
-                query_vector=("v_text", vector),
-                limit=max(limit, 5),
-                query_filter=q_filter,
-                with_payload=True,
-            )
-        except Exception as err:  # pragma: no cover - network errors at runtime
-            raise HTTPException(
-                status_code=502,
-                detail="Vector search service is unavailable.",
-            ) from err
-
-        if not hits:
-            return []
-
-        slugs_in_order = [hit.payload.get("slug") for hit in hits if hit.payload]
-        docs_by_slug = await self._load_recipes_by_slugs(slugs_in_order)
-
-        results: List[Dict[str, Any]] = []
-        for hit in hits:
-            payload = hit.payload or {}
-            slug = payload.get("slug")
-            doc = docs_by_slug.get(slug)
-            if not doc:
-                # Fall back to payload-only data if Mongo copy is missing.
-                results.append(
-                    {
-                        "id": slug or payload.get("title"),
-                        "slug": slug,
-                        "title": payload.get("title"),
-                        "cuisine": payload.get("cuisine"),
-                        "summary": payload.get("summary"),
-                        "description": payload.get("summary"),
-                        "dietary_tags": payload.get("dietary_tags") or [],
-                        "allergen_tags": payload.get("allergen_tags") or [],
-                        "ingredient_tags": payload.get("ingredient_tags") or [],
-                        "ingredients": payload.get("ingredient_tags") or [],
-                        "rating": payload.get("rating_value"),
-                        "score": hit.score,
-                        "source": "vector-payload",
-                    }
-                )
-                continue
-
-            formatted = self._format_recipe(doc)
-            formatted["score"] = hit.score
-            results.append(formatted)
-
-        return results[:limit]
+        vector = self._embed_query_text(query_text)
+        hits = self._run_vector_search(vector, q_filter, limit)
+        return await self._build_results_from_hits(hits, limit)
 
     async def _load_preferences(self, user_id: int) -> Dict[str, List[str]]:
         prefs = await self.user_repo.get_user_prefs(user_id)
@@ -164,6 +99,9 @@ class RecommendationService:
             "ingredient_tags": 1,
             "ingredients": 1,
             "rating": 1,
+            "flavour_tags": 1,
+            "technique_tags": 1,
+            "source_url": 1,
         }
         cursor = self.mongo_db.recipes.find({"slug": {"$in": slugs}}, projection)
         docs = await cursor.to_list(length=len(slugs))
@@ -191,7 +129,7 @@ class RecommendationService:
             must.append(
                 FieldCondition(
                     key="dietary_tags",
-                    match=MatchValue(value=diet),
+                    match=MatchAny(any=[diet]),
                 )
             )
 
@@ -218,6 +156,122 @@ class RecommendationService:
             must=must or None,
             must_not=must_not or None,
         )
+
+    def _build_profile_query(self, prefs: Dict[str, List[str]]) -> str:
+        segments: List[str] = []
+        if prefs["diet_type"]:
+            segments.append(f"{', '.join(prefs['diet_type'])} friendly recipes")
+        if prefs["allergies"]:
+            segments.append(f"free from {', '.join(prefs['allergies'])}")
+        if prefs["dislikes"]:
+            segments.append(f"avoid {', '.join(prefs['dislikes'])}")
+        return ". ".join(segments) or "popular personalized recipes"
+
+    def _embed_query_text(self, text: str) -> List[float]:
+        model = get_embedding_model()
+        try:
+            return model.encode([text], normalize_embeddings=True)[0].tolist()
+        except Exception as err:  # pragma: no cover
+            raise HTTPException(status_code=500, detail="Embedding model failure.") from err
+
+    def _run_vector_search(
+        self,
+        vector: List[float],
+        q_filter: Optional[Filter],
+        limit: int,
+    ) -> List[ScoredPoint]:
+        try:
+            return self.qdrant.search(
+                collection_name=self.collection,
+                query_vector=("v_text", vector),
+                limit=max(limit, 5),
+                query_filter=q_filter,
+                with_payload=True,
+            )
+        except Exception as err:  # pragma: no cover
+            raise HTTPException(
+                status_code=502,
+                detail="Vector search service is unavailable.",
+            ) from err
+
+    async def _build_results_from_hits(
+        self,
+        hits: List[ScoredPoint],
+        limit: int,
+    ) -> List[Dict[str, Any]]:
+        if not hits:
+            return []
+
+        slugs_in_order = [hit.payload.get("slug") for hit in hits if hit.payload]
+        docs_by_slug = await self._load_recipes_by_slugs(slugs_in_order)
+
+        results: List[Dict[str, Any]] = []
+        for hit in hits:
+            payload = hit.payload or {}
+            slug = payload.get("slug")
+            doc = docs_by_slug.get(slug)
+            if doc:
+                formatted = self._format_recipe(doc)
+                formatted["source"] = "mongo"
+            else:
+                formatted = self._format_payload_recipe(payload)
+            formatted["score"] = hit.score
+            results.append(formatted)
+
+        return results[:limit]
+
+    async def _load_top_mongo_recipes(
+        self,
+        prefs: Dict[str, List[str]],
+        limit: int,
+    ) -> List[Dict[str, Any]]:
+        query = self._build_mongo_query(prefs)
+        projection = {
+            "_id": 1,
+            "slug": 1,
+            "title": 1,
+            "summary": 1,
+            "description": 1,
+            "cuisine": 1,
+            "course": 1,
+            "dietary_tags": 1,
+            "allergen_tags": 1,
+            "ingredient_tags": 1,
+            "ingredients": 1,
+            "rating": 1,
+            "flavour_tags": 1,
+            "technique_tags": 1,
+            "source_url": 1,
+        }
+        cursor = (
+            self.mongo_db.recipes.find(query, projection)
+            .sort([("rating.value", -1), ("title", 1)])
+            .limit(limit)
+        )
+        docs = await cursor.to_list(length=limit)
+        return [self._format_recipe(doc) for doc in docs]
+
+    def _format_payload_recipe(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        ingredients = payload.get("ingredient_tags") or []
+        return {
+            "id": payload.get("slug") or payload.get("title"),
+            "slug": payload.get("slug"),
+            "title": payload.get("title"),
+            "summary": payload.get("summary"),
+            "description": payload.get("summary"),
+            "cuisine": payload.get("cuisine"),
+            "course": payload.get("course"),
+            "dietary_tags": payload.get("dietary_tags") or [],
+            "allergen_tags": payload.get("allergen_tags") or [],
+            "ingredient_tags": ingredients,
+            "ingredients": ingredients,
+            "flavour_tags": payload.get("flavour_tags") or [],
+            "technique_tags": payload.get("technique_tags") or [],
+            "rating": payload.get("rating_value"),
+            "rating_count": payload.get("rating_count"),
+            "source_url": payload.get("source_url"),
+            "source": "vector-payload",
+        }
 
     def _format_recipe(self, doc: Dict[str, Any]) -> Dict[str, Any]:
         ingredients_field = doc.get("ingredients") or []
@@ -253,8 +307,11 @@ class RecommendationService:
             "allergen_tags": doc.get("allergen_tags") or [],
             "ingredient_tags": doc.get("ingredient_tags") or [],
             "ingredients": ingredients,
+            "flavour_tags": doc.get("flavour_tags") or [],
+            "technique_tags": doc.get("technique_tags") or [],
             "rating": rating.get("value"),
             "rating_count": rating.get("count"),
+            "source_url": doc.get("source_url"),
             "score": None,
             "source": "mongo",
         }
