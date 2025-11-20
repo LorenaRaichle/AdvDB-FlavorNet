@@ -1,3 +1,6 @@
+
+
+
 services:
 
   backend:
@@ -17,7 +20,7 @@ services:
       MONGO_URI: mongodb://mongo:27017/appdb
     depends_on:
       qdrant:
-        condition: service_healthy
+        condition: service_started
       postgres:
         condition: service_started
       mongo:
@@ -44,14 +47,6 @@ services:
       - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
-    # Optional but helpful under load:
-    # environment:
-    #   QDRANT__SERVICE__MAX_REQUEST_SIZE_MB: "100"
-    healthcheck:
-      test: [ "CMD", "wget", "-qO-", "http://localhost:6333/healthz" ]
-      interval: 10s
-      timeout: 5s
-      retries: 12
     environment:
        QDRANT__SERVICE__MAX_REQUEST_SIZE_MB: "100"
 
@@ -126,3 +121,132 @@ volumes:
   neo4j_data:
   neo4j_logs:
   qdrant_data:
+
+#services:
+#
+#  backend:
+#    build:
+#      context: .
+#      target: backend
+#    container_name: backend
+#    ports:
+#      - "8000:8000"
+#    env_file:
+#      - .env
+#    environment:
+#      PGPORT: 5432
+#      QDRANT_HOST: qdrant
+#      QDRANT_PORT: "6333"
+#      QDRANT_GRPC_PORT: "6334"
+#      MONGO_URI: mongodb://mongo:27017/appdb
+#    depends_on:
+#      qdrant:
+#        condition: service_healthy
+#      postgres:
+#        condition: service_started
+#      mongo:
+#        condition: service_started
+#      neo4j:
+#        condition: service_started
+#
+#  frontend:
+#    build:
+#      context: .
+#      target: frontend
+#    container_name: frontend
+#    ports:
+#      - "5173:5173"
+#    depends_on:
+#      backend:
+#        condition: service_started
+#
+#  qdrant:
+#    image: lorena107/qdrant-with-data:latest
+#    container_name: qdrant
+#    ports:
+#      - "6333:6333"
+#      - "6334:6334"
+#    volumes:
+#      - qdrant_data:/qdrant/storage
+#    # Optional but helpful under load:
+#    # environment:
+#    #   QDRANT__SERVICE__MAX_REQUEST_SIZE_MB: "100"
+##    healthcheck:
+##      test: [ "CMD", "wget", "-qO-", "http://localhost:6333/healthz" ]
+##      interval: 10s
+##      timeout: 5s
+##      retries: 12
+#    environment:
+#       QDRANT__SERVICE__MAX_REQUEST_SIZE_MB: "100"
+#
+#
+#
+#
+#  postgres:
+#    image: postgres:16
+#    container_name: postgres
+#    environment:
+#      POSTGRES_USER: ${POSTGRES_USER}
+#      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+#      POSTGRES_DB: ${POSTGRES_DB}
+#    ports:
+#      - "55433:5432"
+#    command: [ "postgres", "-c", "listen_addresses=*" ]
+#    volumes:
+#      - pgdata:/var/lib/postgresql/data
+#      - ./sql/init:/docker-entrypoint-initdb.d
+#
+#
+#  mongo:
+#    image: lorena107/recipes-db:latest
+#    container_name: mongo
+#    restart: unless-stopped
+#    ports:
+#      - "${MONGO_PORT:-27017}:27017"
+##    environment:
+##      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+##      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+##      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+##    volumes:
+##      - mongo_data:/data/db
+##      - ./mongoDB/init:/docker-entrypoint-initdb.d:ro
+##      - ./mongoDB/queries:/queries:ro
+#    healthcheck:
+#      test: [ "CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand({ping:1})' || exit 1" ]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 12
+#
+#  neo4j:
+#    image: neo4j:5-community
+#    container_name: neo4j
+#    ports:
+#      - "7474:7474"
+#      - "7687:7687"
+#    environment:
+#      - NEO4J_AUTH=${NEO4J_AUTH}
+#      - NEO4J_PLUGINS=["apoc"]
+#      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+#      - NEO4J_apoc_export_file_enabled=true
+#      - NEO4J_apoc_import_file_enabled=true
+#      - NEO4J_server_memory_pagecache_size=512m
+#      - NEO4J_server_memory_heap_initial__size=512m
+#      - NEO4J_server_memory_heap_max__size=1g
+#    volumes:
+#      - neo4j_data:/data
+#      - neo4j_logs:/logs
+#      - ./neo4j/import:/import
+#      - ./neo4j/plugins:/plugins
+#    healthcheck:
+#      test: [ "CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1" ]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 12
+#
+#
+#volumes:
+#  pgdata:
+#  #mongo_data:
+#  neo4j_data:
+#  neo4j_logs:
+#  qdrant_data:

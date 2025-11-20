@@ -42,7 +42,7 @@ Bad JSON lines:        0
 
 to do Qdrant
 - docker compose pull qdrant
-docker compose up -d qdrant
+- docker compose up -d qdrant
 On first boot, the entrypoint sees an empty volume and unpacks your baked data into /qdrant/storage.
 Check progress: docker logs -f qdrant (you’ll see the “Restoring from seed tarball…” message once).
 Verify:
