@@ -30,7 +30,7 @@ open  http://localhost:5173
 <details>
   <summary>Show login screenshot</summary>
 
-  <img src="docs/images/1_Login.png" alt="Login screen" width="650" />
+  <img src="docs/images/1_Login.png" alt="Login screen" width="850" />
 </details>
 
 ---
