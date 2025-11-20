@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
 import {
   getRecommendedRecipes,
@@ -10,14 +11,17 @@ type Recipe = {
   title?: string;
   name?: string;
   cuisine?: string;
+  dietary_tags?: string[];
   rating_avg?: number | string;
   rating?: number | string;
   summary?: string;
   description?: string;
   ingredients?: string[] | string;
+  steps?: string[] | string;
   recipe_id?: string | number;
   id?: string | number;
   score?: number;
+  slug?: string;
 };
 
 const cuisineIcons: Record<string, string> = {
@@ -29,6 +33,20 @@ const cuisineIcons: Record<string, string> = {
   thai: "🍜",
   asian: "🥢",
   american: "🍔",
+};
+
+const dietIcons: Record<string, string> = {
+  vegan: "🌱",
+  vegetarian: "🥕",
+  "gluten-free": "🚫🌾",
+  pescatarian: "🐟",
+  keto: "🥩",
+  paleo: "🍖",
+  halal: "🕌",
+  kosher: "✡️",
+  dairyfree: "🥛🚫",
+  "dairy-free": "🥛🚫",
+  "low-carb": "🥑",
 };
 
 const stablePick = (key: string, values: string[]) => {
@@ -50,6 +68,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const user = useUserStore((state) => state.user);
+  const navigate = useNavigate();
 
   const fetchRecommended = useCallback(async () => {
     if (!user?.id) {
@@ -111,6 +130,13 @@ export default function Home() {
   useEffect(() => {
     fetchRecommended();
   }, [fetchRecommended]);
+
+  const handleViewRecipe = (recipe: Recipe) => {
+    const slug = recipe.slug || recipe.title || recipe.id || "recipe";
+    navigate(`/recipes/${encodeURIComponent(String(slug))}`, {
+      state: { recipe },
+    });
+  };
 
   return (
     <>
@@ -177,7 +203,15 @@ export default function Home() {
                 {recipes.map((recipe) => {
                   const title = recipe.title || recipe.name || "Untitled Recipe";
                   const cuisine = recipe.cuisine || "Any cuisine";
+                  const dietaryTags = Array.isArray(recipe.dietary_tags)
+                    ? recipe.dietary_tags.filter(Boolean)
+                    : [];
+                  const dietIcon =
+                    dietaryTags
+                      .map((tag) => dietIcons[tag.toLowerCase().replace(/\s+/g, "-")] || dietIcons[tag.toLowerCase().replace(/[^a-z]/g, "")])
+                      .find(Boolean) || null;
                   const icon =
+                    dietIcon ||
                     cuisineIcons[cuisine.toLowerCase()] ||
                     stablePick(title, Object.values(cuisineIcons)) ||
                     "🍽️";
@@ -187,10 +221,9 @@ export default function Home() {
                       ? `Match: ${(recipe.score * 100).toFixed(0)}%`
                       : null;
 
-                  const badges = [cuisine || "Any cuisine"].filter(Boolean);
-                  if (scoreBadge) {
-                    badges.push(scoreBadge);
-                  }
+                  const dietBadges =
+                    dietaryTags.length > 0 ? dietaryTags : ["Any diet"];
+                  const badges = scoreBadge ? [...dietBadges, scoreBadge] : dietBadges;
 
                   const description =
                     recipe.summary ||
@@ -234,6 +267,7 @@ export default function Home() {
                       <div className="mt-6">
                         <button
                           type="button"
+                          onClick={() => handleViewRecipe(recipe)}
                           className="inline-flex w-full items-center justify-center rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-200"
                         >
                           View Recipe

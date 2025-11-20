@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir --upgrade pip \
         "psycopg2-binary>=2.9.11" \
         "pymongo>=4.15.3" \
         "motor>=3.6.0" \
-        "qdrant-client>=1.15.1" \
+        "qdrant-client==1.9.0" \
         "sentence-transformers==2.7.0" \
         "torch>=2.4" \
         "transformers==4.40.2" \

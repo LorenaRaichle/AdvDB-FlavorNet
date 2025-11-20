@@ -23,7 +23,10 @@ class Settings(BaseSettings):
     APP_NEO4J_PASSWORD: str | None = "password"
 
     # Qdrant
-    QDRANT_URL: str | None = "http://localhost:6333"
+    QDRANT_URL: str | None = "http://qdrant:6333"
+    QDRANT_HOST: str | None = None
+    QDRANT_PORT: int = 6333
+    QDRANT_GRPC_PORT: int | None = None
     QDRANT_API_KEY: str | None = None
     QDRANT_COLLECTION: str = "recipes"
     EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
@@ -75,7 +78,24 @@ class Settings(BaseSettings):
     @property
     def qdrant_url(self) -> str:
         """Qdrant endpoint (HTTP or gRPC)."""
-        return self.QDRANT_URL
+        # Prefer explicit host/port wiring (e.g. docker-compose service discovery).
+        host = (self.QDRANT_HOST or "").strip()
+        if host:
+            if host.startswith(("http://", "https://")):
+                base = host.rstrip("/")
+            else:
+                base = f"http://{host}"
+
+            # Only append port if the host didn't already include one.
+            host_has_port = ":" in host.split("://")[-1]
+            port = self.QDRANT_PORT or 6333
+            return base if host_has_port else f"{base}:{port}"
+
+        # Fallback to explicit URL or sensible default for local dev.
+        if self.QDRANT_URL:
+            return self.QDRANT_URL
+
+        return "http://qdrant:6333"
 
     class Config:
         env_file = ".env"

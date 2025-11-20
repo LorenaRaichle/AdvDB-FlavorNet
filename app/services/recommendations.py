@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, Iterable, List, Optional
 
 from bson import ObjectId
@@ -12,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.embeddings import get_embedding_model
 from app.repositories.user_repo import UserRepository
+
+logger = logging.getLogger(__name__)
 
 
 class RecommendationService:
@@ -189,6 +192,24 @@ class RecommendationService:
                 with_payload=True,
             )
         except Exception as err:  # pragma: no cover
+            # Log with both logger and stderr to ensure visibility in container logs.
+            logger.exception(
+                "Qdrant vector search failed",
+                extra={
+                    "collection": self.collection,
+                    "limit": limit,
+                    "has_filter": bool(q_filter),
+                    "vector_dim": len(vector) if vector else None,
+                },
+            )
+            import sys, traceback
+
+            print(
+                f"[vector_search_error] collection={self.collection} limit={limit} "
+                f"has_filter={bool(q_filter)} vector_dim={len(vector) if vector else None}",
+                file=sys.stderr,
+            )
+            traceback.print_exc()
             raise HTTPException(
                 status_code=502,
                 detail="Vector search service is unavailable.",
@@ -253,6 +274,9 @@ class RecommendationService:
 
     def _format_payload_recipe(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         ingredients = payload.get("ingredient_tags") or []
+        steps = payload.get("steps") or []
+        if isinstance(steps, str):
+            steps = [s.strip() for s in steps.split("\n") if s.strip()]
         return {
             "id": payload.get("slug") or payload.get("title"),
             "slug": payload.get("slug"),
@@ -265,6 +289,7 @@ class RecommendationService:
             "allergen_tags": payload.get("allergen_tags") or [],
             "ingredient_tags": ingredients,
             "ingredients": ingredients,
+            "steps": steps,
             "flavour_tags": payload.get("flavour_tags") or [],
             "technique_tags": payload.get("technique_tags") or [],
             "rating": payload.get("rating_value"),
@@ -295,18 +320,31 @@ class RecommendationService:
         elif doc_id is not None:
             doc_id = str(doc_id)
 
+        description = doc.get("description") or doc.get("summary")
+        steps_field = doc.get("steps") or doc.get("instructions") or []
+        steps: List[str] = []
+        if isinstance(steps_field, list):
+            for step in steps_field:
+                if isinstance(step, str):
+                    cleaned = step.strip()
+                    if cleaned:
+                        steps.append(cleaned)
+        elif isinstance(steps_field, str):
+            steps = [line.strip() for line in steps_field.split("\n") if line.strip()]
+
         return {
             "id": doc_id,
             "slug": doc.get("slug"),
             "title": doc.get("title"),
             "summary": doc.get("summary"),
-            "description": doc.get("description"),
+            "description": description,
             "cuisine": doc.get("cuisine"),
             "course": doc.get("course"),
             "dietary_tags": doc.get("dietary_tags") or [],
             "allergen_tags": doc.get("allergen_tags") or [],
             "ingredient_tags": doc.get("ingredient_tags") or [],
             "ingredients": ingredients,
+            "steps": steps,
             "flavour_tags": doc.get("flavour_tags") or [],
             "technique_tags": doc.get("technique_tags") or [],
             "rating": rating.get("value"),

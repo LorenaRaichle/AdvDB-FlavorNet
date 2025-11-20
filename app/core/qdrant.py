@@ -13,5 +13,4 @@ def get_qdrant_client() -> QdrantClient:
         api_key=settings.QDRANT_API_KEY or None,
         timeout=30.0,
         prefer_grpc=False,
-        check_compatibility=False,
     )
