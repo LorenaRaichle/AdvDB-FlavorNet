@@ -16,6 +16,76 @@ from app.repositories.user_repo import UserRepository
 
 logger = logging.getLogger(__name__)
 
+# Basic canonicalized animal-product blockers for vegan enforcement.
+NON_VEGAN_TERMS = {
+    "beef",
+    "pork",
+    "bacon",
+    "ham",
+    "sausage",
+    "chicken",
+    "turkey",
+    "duck",
+    "lamb",
+    "mutton",
+    "veal",
+    "fish",
+    "salmon",
+    "tuna",
+    "cod",
+    "anchovy",
+    "anchovies",
+    "sardine",
+    "sardines",
+    "trout",
+    "mackerel",
+    "shrimp",
+    "prawn",
+    "prawns",
+    "crab",
+    "crabmeat",
+    "lobster",
+    "oyster",
+    "oysters",
+    "clam",
+    "clams",
+    "mussel",
+    "mussels",
+    "scallop",
+    "scallops",
+    "gelatin",
+    "gelatine",
+    "lard",
+    "tallow",
+    "whey",
+    "casein",
+    "egg",
+    "eggs",
+    "egg yolk",
+    "egg yolks",
+    "egg white",
+    "egg whites",
+    "milk",
+    "whole milk",
+    "skim milk",
+    "butter",
+    "buttermilk",
+    "cream",
+    "heavy cream",
+    "sour cream",
+    "yogurt",
+    "cheese",
+    "mozzarella",
+    "cheddar",
+    "parmesan",
+    "gouda",
+    "feta",
+    "ricotta",
+    "goat cheese",
+    "blue cheese",
+    "honey",
+}
+
 
 class RecommendationService:
     """Coordinates user preferences, MongoDB filtering, and Qdrant similarity search."""
@@ -30,6 +100,7 @@ class RecommendationService:
         self.mongo_db = mongo_db
         self.qdrant = qdrant_client
         self.collection = settings.QDRANT_COLLECTION
+        self._prefs: Dict[str, List[str]] = {}
 
     async def get_personalized_recipes(
         self,
@@ -37,12 +108,14 @@ class RecommendationService:
         limit: int = 12,
     ) -> List[Dict[str, Any]]:
         prefs = await self._load_preferences(user_id)
+        self._prefs = prefs  # cache for downstream filtering
         q_filter = self._build_qdrant_filter(prefs)
         profile_query = self._build_profile_query(prefs)
 
         try:
             vector = self._embed_query_text(profile_query)
-            hits = self._run_vector_search(vector, q_filter, limit)
+            search_limit = max(limit * 3, 20)
+            hits = self._run_vector_search(vector, q_filter, search_limit)
             items = await self._build_results_from_hits(hits, limit)
             if items:
                 return items
@@ -65,9 +138,11 @@ class RecommendationService:
             raise HTTPException(status_code=400, detail="Query text cannot be empty.")
 
         prefs = await self._load_preferences(user_id)
+        self._prefs = prefs  # cache for downstream filtering
         q_filter = self._build_qdrant_filter(prefs)
         vector = self._embed_query_text(query_text)
-        hits = self._run_vector_search(vector, q_filter, limit)
+        search_limit = max(limit * 3, 20)
+        hits = self._run_vector_search(vector, q_filter, search_limit)
         return await self._build_results_from_hits(hits, limit)
 
     async def _load_preferences(self, user_id: int) -> Dict[str, List[str]]:
@@ -105,6 +180,10 @@ class RecommendationService:
             "flavour_tags": 1,
             "technique_tags": 1,
             "source_url": 1,
+            "images": 1,
+            "image": 1,
+            "nutrition": 1,
+            "nutritional_info": 1,
         }
         cursor = self.mongo_db.recipes.find({"slug": {"$in": slugs}}, projection)
         docs = await cursor.to_list(length=len(slugs))
@@ -116,11 +195,18 @@ class RecommendationService:
         if prefs["diet_type"]:
             query["dietary_tags"] = {"$all": prefs["diet_type"]}
 
+        nin_ingredients: List[str] = []
         if prefs["allergies"]:
+            # Exclude recipes that contain allergens either in explicit allergen_tags
+            # or in the broader ingredient_tags list.
             query["allergen_tags"] = {"$nin": prefs["allergies"]}
+            nin_ingredients.extend(prefs["allergies"])
 
         if prefs["dislikes"]:
-            query["ingredient_tags"] = {"$nin": prefs["dislikes"]}
+            nin_ingredients.extend(prefs["dislikes"])
+
+        if nin_ingredients:
+            query["ingredient_tags"] = {"$nin": nin_ingredients}
 
         return query
 
@@ -137,12 +223,9 @@ class RecommendationService:
             )
 
         if prefs["allergies"]:
-            must_not.append(
-                FieldCondition(
-                    key="allergen_tags",
-                    match=MatchAny(any=prefs["allergies"]),
-                )
-            )
+            allergy_match = MatchAny(any=prefs["allergies"])
+            must_not.append(FieldCondition(key="allergen_tags", match=allergy_match))
+            must_not.append(FieldCondition(key="ingredient_tags", match=allergy_match))
 
         if prefs["dislikes"]:
             must_not.append(
@@ -231,15 +314,33 @@ class RecommendationService:
             payload = hit.payload or {}
             slug = payload.get("slug")
             doc = docs_by_slug.get(slug)
+
+            # Prefer Mongo doc (authoritative tags); if absent, fall back to payload.
+            candidate = None
             if doc:
                 formatted = self._format_recipe(doc)
                 formatted["source"] = "mongo"
+                candidate = formatted
             else:
                 formatted = self._format_payload_recipe(payload)
-            formatted["score"] = hit.score
-            results.append(formatted)
+                candidate = formatted
 
-        return results[:limit]
+            # Hard-filter against preferences to avoid allergen/diet leaks when payload tags are incomplete.
+            if not self._matches_prefs(candidate):
+                continue
+
+            # Additional safeguards on early hits: scan ingredient text for allergens/dislikes and non-vegan terms.
+            if len(results) < 20:
+                if self._violates_ingredient_text(candidate) or self._violates_diet_terms(candidate):
+                    continue
+
+            candidate["score"] = hit.score
+            results.append(candidate)
+
+            if len(results) >= limit:
+                break
+
+        return results
 
     async def _load_top_mongo_recipes(
         self,
@@ -277,6 +378,14 @@ class RecommendationService:
         steps = payload.get("steps") or []
         if isinstance(steps, str):
             steps = [s.strip() for s in steps.split("\n") if s.strip()]
+        images_field = payload.get("images") or payload.get("image") or payload.get("image_url")
+        images: List[str] = []
+        if isinstance(images_field, list):
+            images = [str(img) for img in images_field if img]
+        elif isinstance(images_field, str):
+            images = [images_field]
+
+        nutrition = payload.get("nutrition") or payload.get("nutritional_info")
         return {
             "id": payload.get("slug") or payload.get("title"),
             "slug": payload.get("slug"),
@@ -290,6 +399,8 @@ class RecommendationService:
             "ingredient_tags": ingredients,
             "ingredients": ingredients,
             "steps": steps,
+            "images": images,
+            "nutrition": nutrition,
             "flavour_tags": payload.get("flavour_tags") or [],
             "technique_tags": payload.get("technique_tags") or [],
             "rating": payload.get("rating_value"),
@@ -332,6 +443,15 @@ class RecommendationService:
         elif isinstance(steps_field, str):
             steps = [line.strip() for line in steps_field.split("\n") if line.strip()]
 
+        images_field = doc.get("images") or doc.get("image")
+        images: List[str] = []
+        if isinstance(images_field, list):
+            images = [str(img) for img in images_field if img]
+        elif isinstance(images_field, str):
+            images = [images_field]
+
+        nutrition = doc.get("nutrition") or doc.get("nutritional_info")
+
         return {
             "id": doc_id,
             "slug": doc.get("slug"),
@@ -345,6 +465,8 @@ class RecommendationService:
             "ingredient_tags": doc.get("ingredient_tags") or [],
             "ingredients": ingredients,
             "steps": steps,
+            "images": images,
+            "nutrition": nutrition,
             "flavour_tags": doc.get("flavour_tags") or [],
             "technique_tags": doc.get("technique_tags") or [],
             "rating": rating.get("value"),
@@ -357,3 +479,69 @@ class RecommendationService:
     @staticmethod
     def _sanitize_list(value: Optional[Iterable[str]]) -> List[str]:
         return [item.strip().lower() for item in (value or []) if isinstance(item, str) and item.strip()]
+
+    def _matches_prefs(self, recipe: Dict[str, Any]) -> bool:
+        """Ensure recipe satisfies dietary inclusion and allergy/dislike exclusions."""
+        if not isinstance(recipe, dict):
+            return False
+
+        diet = self._sanitize_list(recipe.get("dietary_tags"))
+        allergens = self._sanitize_list(recipe.get("allergen_tags"))
+        ingredients = self._sanitize_list(recipe.get("ingredient_tags") or recipe.get("ingredients"))
+
+        # All required diets must be present (if any).
+        if self._prefs.get("diet_type"):
+            for required in self._prefs["diet_type"]:
+                if required not in diet:
+                    return False
+
+        # No allergies in allergens or ingredients.
+        for allergy in self._prefs.get("allergies", []):
+            if allergy in allergens or allergy in ingredients:
+                return False
+
+        # Dislikes excluded via ingredient tags.
+        for dislike in self._prefs.get("dislikes", []):
+            if dislike in ingredients:
+                return False
+
+        return True
+
+    def _violates_ingredient_text(self, recipe: Dict[str, Any]) -> bool:
+        """Catch obvious allergen/dislike strings in ingredients text when tags are incomplete."""
+        prefs_allergies = set(self._prefs.get("allergies", []))
+        prefs_dislikes = set(self._prefs.get("dislikes", []))
+        if not prefs_allergies and not prefs_dislikes:
+            return False
+
+        ingredients_field = recipe.get("ingredients") or recipe.get("ingredient_tags")
+        texts: List[str] = []
+        if isinstance(ingredients_field, list):
+            texts = [str(item).lower() for item in ingredients_field if item]
+        elif isinstance(ingredients_field, str):
+            texts = [ingredients_field.lower()]
+
+        haystack = " | ".join(texts)
+        for term in prefs_allergies.union(prefs_dislikes):
+            if term.lower() in haystack:
+                return True
+        return False
+
+    def _violates_diet_terms(self, recipe: Dict[str, Any]) -> bool:
+        """Reject recipes that conflict with diet when tags alone are insufficient."""
+        diet = set(self._prefs.get("diet_type") or [])
+        if "vegan" not in diet:
+            return False
+
+        ingredients_field = recipe.get("ingredients") or recipe.get("ingredient_tags")
+        texts: List[str] = []
+        if isinstance(ingredients_field, list):
+            texts = [str(item).lower() for item in ingredients_field if item]
+        elif isinstance(ingredients_field, str):
+            texts = [ingredients_field.lower()]
+
+        haystack = " | ".join(texts)
+        for term in NON_VEGAN_TERMS:
+            if term in haystack:
+                return True
+        return False
