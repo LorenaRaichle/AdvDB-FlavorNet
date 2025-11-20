@@ -1,21 +1,88 @@
 # FlavorNet
+by Sejma Sijaric & Lorena Raichle
 
 FlavorNet is a multi-database recipe recommendation app that serves a FastAPI backend and a Vite/React frontend. It combines vector search (Qdrant), document storage (MongoDB) and relational data (PostgreSQL) to deliver personalized, filterable recipe results.
+
+Discover curated recipes tailored to your taste profile. From here you can browse suggestions or refine your search.
+
+<img src="docs/images/5_searchTailoredToYourPreferences.png" width="50%" />
+
+
+
+---
 
 ## Quick Start
 
 ```bash
 docker compose up --build -d
 ```
-Frontend to use the whole Multi Database System and look through recipes. 
+Frontend to use the whole Multi Database System and browse through recipes. 
 Frontend: http://localhost:5173  
 
+---
 
-## Frontend Instructions
-1. Create a user account and set preferences (using email, password)
-2. Login with your new credentials 
-3. "Landing Page of Recipes" : get inspired while the system already considers your settings (allergies, diet, dislikes)
-4. Query and search for specific ideas 
+### UI Walkthrough
+
+open  http://localhost:5173  
+
+#### 1. Welcome to Flavornet on  http://localhost:5173  
+
+<details>
+  <summary>Show login screenshot</summary>
+
+  <img src="docs/images/1_Login.png" alt="Login screen" width="650" />
+</details>
+
+---
+
+#### 2. Create account
+
+Create a FlavorNet account and (optionally) set your diet styles, allergies, and dislikes during signup or later in the "profile" section.
+
+<details>
+  <summary>Show signup screenshot</summary>
+
+  <img src="docs/images/2_SetUserPreference.png" alt="Create account and set preferences" width="650" />
+</details>
+
+---
+
+#### 3. Edit taste profile
+
+Update your diet styles, allergies, and disliked ingredients at any time from the Profile page.
+
+<details>
+  <summary>Show taste profile screenshot</summary>
+
+  <img src="docs/images/3_TasteProfile.png" alt="Edit taste profile" width="650" />
+</details>
+
+
+---
+
+#### 4. Get Inspired According to your personalized Preferences, Allergies, Dislike settings
+
+Here you can browse through all recipes of all types, cuisines and ingredients that match your indicated settings.
+
+<details>
+  <summary>Show Inspiration Screenshot</summary>
+
+  <img src="docs/images/4_getInspiredAcoordingtoPreference.png" alt="Search tailored recipe recommendations" width="650" />
+</details>
+
+---
+
+#### 5. Search tailored recommendations
+
+Use the search bar to type cravings like “blueberry cake” or “spicy tofu” and get matching recipes according to your defined search + user settings.
+
+<details>
+  <summary>Show search screenshot</summary>
+
+  <img src="docs/images/5_searchTailoredToYourPreferences.png" alt="Search tailored recipe recommendations" width="650" />
+</details>
+
+
 
 
 To stop:
