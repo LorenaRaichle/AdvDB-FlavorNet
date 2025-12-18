@@ -5,7 +5,7 @@ FlavorNet is a multi-database recipe recommendation app that serves a FastAPI ba
 
 Discover curated recipes tailored to your taste profile. From here you can browse suggestions or refine your search.
 
-A detailed description of the system architecture, database design decisions, implementation, and evaluation: [Report – Advanced Databases: FlavorNet](docs/Report_AdvancedDatabases_FlavorNet.pdf)
+A detailed description of the system architecture, database design decisions, implementation, and evaluation: [Report – Advanced Databases: FlavorNet](docs/Report_AdvDatabases_FlavorNet.pdf)
 
 
 <img src="docs/images/5_searchTailoredToYourPreferences.png" width="75%" />
