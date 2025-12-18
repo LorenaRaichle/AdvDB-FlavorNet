@@ -1,5 +1,5 @@
 # FlavorNet
-by Sejma Sijaric & Lorena Raichle
+by Sejma Sijaric & Lorena Raichle, MCS students at HSG
 
 FlavorNet is a multi-database recipe recommendation app that serves a FastAPI backend and a Vite/React frontend. It combines vector search (Qdrant), document storage (MongoDB) and relational data (PostgreSQL) to deliver personalized, filterable recipe results.
 
@@ -146,7 +146,7 @@ Container logs can also be inspected in the individual containers.
 
 ## Commands Reference
 ```bash
-docker compose up --build -d     # start everything
+docker compose up --build -d     # start everything without logs
 docker compose down              # stop and remove containers
 docker compose stop              # just stop containers
 docker compose logs backend      # view backend logs
